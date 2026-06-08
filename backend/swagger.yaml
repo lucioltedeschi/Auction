@@ -2,10 +2,12 @@ openapi: 3.0.3
 
 info:
   title: API Auct.io - Sistema de Subastas
-  version: 2.0.0
+  version: 3.0.0
   description: >
     API REST para registro KYC en dos pasos, medios de pago, catalogos,
-    pujas, consignacion de articulos, multas e integracion de estado en vivo.
+    pujas en tiempo real (SSE), consignacion de articulos e integracion de
+    estado en vivo. Todos los endpoints protegidos requieren Bearer token
+    obtenido en /api/auth/login.
 
 servers:
   - url: http://localhost:3000
@@ -16,29 +18,42 @@ security:
 
 tags:
   - name: Auth
+    description: Registro y login
   - name: Usuarios
+    description: Perfil, historial y compras
   - name: Subastas
+    description: Listado, detalle, catalogo y tiempo real
   - name: Pujas
+    description: Crear y consultar pujas
   - name: Medios de pago
+    description: Gestion de medios de pago del cliente
   - name: Consignacion
-  - name: Multas
+    description: Solicitud y seguimiento de consignaciones
   - name: Admin
+    description: Operaciones internas de empleados
 
 paths:
+
+  # ── Health ───────────────────────────────────────────────────────────────────
+
   /api/test:
     get:
-      tags: [Usuarios]
-      summary: Probar conexion con la base
+      tags: [Auth]
+      summary: Verificar conexion con la base
       security: []
       responses:
         "200":
           description: API conectada
 
+  # ── Auth ─────────────────────────────────────────────────────────────────────
+
   /api/auth/registro/paso1:
     post:
       tags: [Auth]
-      summary: Registro KYC paso 1 sin clave
-      description: El usuario carga datos personales y queda pendiente de verificacion de la empresa.
+      summary: Registro KYC paso 1 — datos personales y DNI
+      description: >
+        El usuario carga datos personales y fotos del DNI. Queda en estado
+        pendiente hasta que un empleado apruebe su identidad.
       security: []
       requestBody:
         required: true
@@ -48,7 +63,7 @@ paths:
               $ref: "#/components/schemas/RegistroPaso1"
       responses:
         "201":
-          description: Solicitud creada
+          description: Solicitud creada, pendiente de verificacion
         "400":
           description: Faltan datos obligatorios
         "409":
@@ -57,8 +72,10 @@ paths:
   /api/auth/registro/paso2:
     post:
       tags: [Auth]
-      summary: Registro KYC paso 2, generacion de clave
-      description: Solo se habilita cuando un admin aprobo al usuario y le asigno categoria.
+      summary: Registro KYC paso 2 — generar clave
+      description: >
+        Solo disponible cuando un admin aprobo al usuario y le asigno categoria.
+        El usuario elige su contrasena y la cuenta queda activa.
       security: []
       requestBody:
         required: true
@@ -72,7 +89,7 @@ paths:
                 clave: { type: string, format: password, example: "Clave1234" }
       responses:
         "200":
-          description: Clave generada
+          description: Clave generada, cuenta activa
         "403":
           description: Cuenta pendiente de verificacion
         "404":
@@ -95,11 +112,21 @@ paths:
                 clave: { type: string, example: "1234" }
       responses:
         "200":
-          description: Login correcto con token Bearer de demo
+          description: Login correcto — devuelve token Bearer y datos del usuario
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  token: { type: string }
+                  userId: { type: integer }
+                  esAdmin: { type: boolean }
         "401":
           description: Credenciales incorrectas
         "403":
           description: Usuario no activo o no admitido
+
+  # ── Usuarios ─────────────────────────────────────────────────────────────────
 
   /api/users/{userId}:
     get:
@@ -112,30 +139,83 @@ paths:
           description: Perfil obtenido
         "404":
           description: Usuario no encontrado
+    patch:
+      tags: [Usuarios]
+      summary: Actualizar perfil de usuario
+      description: Permite editar email, telefono y direccion.
+      parameters:
+        - $ref: "#/components/parameters/UserId"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                email: { type: string, example: "nuevo@mail.com" }
+                telefono: { type: string, example: "1155551234" }
+                direccion: { type: string, example: "Av. Santa Fe 1234, CABA" }
+      responses:
+        "200":
+          description: Perfil actualizado
+        "404":
+          description: Usuario no encontrado
 
-  /api/clients/{clientId}/auctions:
+  /api/clients/{clientId}/history:
     get:
-      tags: [Subastas]
-      summary: Subastas disponibles para un cliente
-      description: Devuelve puedeVer, puedePujar y motivoBloqueo segun categoria, medios verificados y multas.
+      tags: [Usuarios]
+      summary: Historial de participacion en subastas
+      description: >
+        Devuelve las subastas en las que el cliente pujo, con totalPujas,
+        itemsGanados y estado (en_curso / cerrada).
       parameters:
         - $ref: "#/components/parameters/ClientId"
       responses:
         "200":
-          description: Listado con estado de acceso
+          description: Listado de subastas con metricas de participacion
+
+  /api/clients/{clientId}/purchases:
+    get:
+      tags: [Usuarios]
+      summary: Compras adjudicadas del cliente
+      description: >
+        Devuelve los lotes ganados con precio final, estado de pago y
+        fecha limite de pago (fechaVenta + 7 dias).
+      parameters:
+        - $ref: "#/components/parameters/ClientId"
+      responses:
+        "200":
+          description: Compras adjudicadas
+
+  # ── Subastas ─────────────────────────────────────────────────────────────────
 
   /api/auctions:
     get:
       tags: [Subastas]
-      summary: Listar subastas
+      summary: Listar subastas disponibles
+      description: Devuelve subastas en estado abierta o programada.
+      security: []
       responses:
         "200":
           description: Subastas registradas
 
+  /api/clients/{clientId}/auctions:
+    get:
+      tags: [Subastas]
+      summary: Subastas disponibles con acceso del cliente
+      description: >
+        Igual que /api/auctions pero enriquecido con puedeVer, puedePujar
+        y motivoBloqueo segun categoria, medios verificados y multas pendientes.
+      parameters:
+        - $ref: "#/components/parameters/ClientId"
+      responses:
+        "200":
+          description: Subastas con estado de acceso del cliente
+
   /api/auctions/{auctionId}:
     get:
       tags: [Subastas]
-      summary: Detalle de subasta
+      summary: Detalle de una subasta
       parameters:
         - $ref: "#/components/parameters/AuctionId"
       responses:
@@ -148,7 +228,9 @@ paths:
     get:
       tags: [Subastas]
       summary: Catalogo completo de una subasta
-      description: Incluye items, precio base, comision, historia, artista y mejor oferta.
+      description: >
+        Devuelve todos los items con precio base, comision, artista,
+        historia y mejor oferta actual.
       parameters:
         - $ref: "#/components/parameters/AuctionId"
       responses:
@@ -158,45 +240,64 @@ paths:
   /api/auctions/{auctionId}/live-state:
     get:
       tags: [Subastas]
-      summary: Estado actual de subasta en vivo
-      description: Incluye item actual, mejor oferta, puja minima, puja maxima, tiempo restante y URL SSE.
+      summary: Estado en vivo de la subasta (snapshot)
+      description: >
+        Devuelve el item actual en subasta, mejor oferta, limites de puja,
+        segundosRestantes, duracionItemMinutos y URL del canal SSE.
+        El timer se calcula desde la ultima puja, o desde el horario
+        programado de la subasta si aun no hay pujas.
       parameters:
         - $ref: "#/components/parameters/AuctionId"
       responses:
         "200":
-          description: Estado vivo
+          description: Estado en vivo
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  subastaId: { type: integer }
+                  estado: { type: string, enum: [en_curso, programada, cerrada] }
+                  duracionItemMinutos: { type: integer, example: 3 }
+                  segundosRestantes: { type: integer, example: 142 }
+                  mejorOferta: { type: number }
+                  pujaMinima: { type: number }
+                  pujaMaxima: { type: number, nullable: true }
+                  eventosUrl: { type: string }
+                  itemActual:
+                    type: object
+                    properties:
+                      itemId: { type: integer }
+                      descripcionCatalogo: { type: string }
+                      precioBase: { type: number }
+                      comision: { type: number }
         "404":
-          description: Sin item activo
+          description: Sin item activo en esta subasta
 
   /api/auctions/{auctionId}/events:
     get:
       tags: [Subastas]
-      summary: Canal SSE de actualizaciones en tiempo real
-      description: Publica eventos live-state cada 5 segundos.
+      summary: Stream SSE de actualizaciones en tiempo real
+      description: >
+        Publica eventos live-state cada 5 segundos. Auto-inicia subastas
+        programadas cuando llega su hora y cierra items cuando expira el timer.
+        Formato de respuesta: text/event-stream (conexion persistente).
       parameters:
         - $ref: "#/components/parameters/AuctionId"
       responses:
         "200":
           description: Stream text/event-stream
 
-  /api/catalog-items/{itemId}/bids:
-    get:
-      tags: [Pujas]
-      summary: Historial de pujas de un item
-      parameters:
-        - $ref: "#/components/parameters/ItemId"
-      responses:
-        "200":
-          description: Pujas ordenadas por fecha
+  # ── Pujas ─────────────────────────────────────────────────────────────────────
 
   /api/auctions/{auctionId}/items/{itemId}/bids:
     post:
       tags: [Pujas]
       summary: Crear puja sobre un item de una subasta
       description: >
-        Valida usuario activo, admitido, categoria suficiente, medio de pago verificado,
-        ausencia de multas pendientes, item no vendido y reglas de +1% minimo / +20%
-        maximo sobre precio base. Oro y platino no tienen limite maximo.
+        Valida: usuario activo y admitido, categoria suficiente, medio de pago
+        verificado, sin multas pendientes, item no vendido. Reglas de monto:
+        minimo precio_base + 1%, maximo precio_base + 20% (sin limite para oro y platino).
       parameters:
         - $ref: "#/components/parameters/AuctionId"
         - $ref: "#/components/parameters/ItemId"
@@ -214,16 +315,17 @@ paths:
         "201":
           description: Puja registrada
         "400":
-          description: Monto fuera de reglas
+          description: Monto fuera de las reglas permitidas
         "403":
-          description: Cliente no habilitado
+          description: Cliente no habilitado para pujar
         "409":
-          description: Item vendido
+          description: Item ya vendido
 
   /api/bids:
     post:
       tags: [Pujas]
-      summary: Crear puja, ruta compatible
+      summary: Crear puja (ruta alternativa compatible con Android)
+      description: Misma logica que la ruta anidada. Acepta subastaId en el body.
       requestBody:
         required: true
         content:
@@ -240,6 +342,37 @@ paths:
         "201":
           description: Puja registrada
 
+  /api/catalog-items/{itemId}/bids:
+    get:
+      tags: [Pujas]
+      summary: Historial de pujas de un item
+      parameters:
+        - $ref: "#/components/parameters/ItemId"
+      responses:
+        "200":
+          description: Pujas ordenadas por fecha descendente
+
+  /api/catalog-items/{itemId}/best-bid:
+    get:
+      tags: [Pujas]
+      summary: Mejor oferta actual de un item
+      parameters:
+        - $ref: "#/components/parameters/ItemId"
+      responses:
+        "200":
+          description: Importe y cliente de la mejor oferta
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  importe: { type: number, nullable: true }
+                  clienteId: { type: integer, nullable: true }
+        "404":
+          description: Item no encontrado
+
+  # ── Medios de pago ────────────────────────────────────────────────────────────
+
   /api/clients/{clientId}/payment-methods:
     get:
       tags: [Medios de pago]
@@ -248,11 +381,13 @@ paths:
         - $ref: "#/components/parameters/ClientId"
       responses:
         "200":
-          description: Medios de pago
+          description: Medios de pago con estado de verificacion
     post:
       tags: [Medios de pago]
       summary: Agregar medio de pago
-      description: Acepta cuenta bancaria, tarjeta de credito o cheque certificado. Queda pendiente de verificacion.
+      description: >
+        Acepta cuenta bancaria, tarjeta de credito o cheque certificado.
+        Queda pendiente de verificacion por un empleado.
       parameters:
         - $ref: "#/components/parameters/ClientId"
       requestBody:
@@ -263,15 +398,44 @@ paths:
               $ref: "#/components/schemas/MedioPago"
       responses:
         "201":
-          description: Medio de pago creado
+          description: Medio de pago creado, pendiente de verificacion
         "400":
           description: Datos invalidos
+
+  /api/clients/{clientId}/payment-methods/{paymentMethodId}:
+    patch:
+      tags: [Medios de pago]
+      summary: Editar medio de pago existente
+      description: >
+        Permite actualizar campos del medio de pago. Vuelve a estado
+        pendiente de verificacion tras la edicion.
+      parameters:
+        - $ref: "#/components/parameters/ClientId"
+        - name: paymentMethodId
+          in: path
+          required: true
+          schema: { type: integer }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/MedioPago"
+      responses:
+        "200":
+          description: Medio de pago actualizado
+        "404":
+          description: Medio de pago no encontrado
+
+  # ── Consignacion ──────────────────────────────────────────────────────────────
 
   /api/products:
     post:
       tags: [Consignacion]
       summary: Solicitar consignacion de articulo
-      description: Requiere declaracion de propiedad, origen licito y minimo 6 fotos.
+      description: >
+        Requiere declaracion de propiedad, origen licito y minimo 6 fotos en base64.
+        Opcionalmente el cliente puede indicar una subasta destino preferida (subastaId).
       requestBody:
         required: true
         content:
@@ -282,23 +446,24 @@ paths:
         "202":
           description: Solicitud enviada a revision
         "400":
-          description: Faltan datos o fotos
+          description: Faltan datos o fotos insuficientes
 
   /api/clients/{clientId}/products:
     get:
       tags: [Consignacion]
       summary: Seguimiento de consignaciones del cliente
+      description: Devuelve estado (pendiente / aceptado / rechazado) y subasta preferida de cada solicitud.
       parameters:
         - $ref: "#/components/parameters/ClientId"
       responses:
         "200":
-          description: Solicitudes propias
+          description: Consignaciones propias
 
   /api/products/{productId}/photos:
     get:
       tags: [Consignacion]
-      summary: Fotos cargadas de un producto
-      description: Devuelve las fotos en base64 para que el front pueda mostrar imagenes reales del catalogo.
+      summary: Fotos de un producto consignado
+      description: Devuelve las fotos en base64 para mostrar imagenes reales en el catalogo.
       parameters:
         - name: productId
           in: path
@@ -308,95 +473,15 @@ paths:
         "200":
           description: Fotos del producto
 
-  /api/clients/{clientId}/history:
+  # ── Admin ─────────────────────────────────────────────────────────────────────
+
+  /api/admin/users/pending:
     get:
-      tags: [Usuarios]
-      summary: Historial y metricas de participacion
-      parameters:
-        - $ref: "#/components/parameters/ClientId"
+      tags: [Admin]
+      summary: Listar usuarios pendientes de verificacion
       responses:
         "200":
-          description: Participaciones del cliente
-
-  /api/clients/{clientId}/purchases:
-    get:
-      tags: [Usuarios]
-      summary: Compras adjudicadas y estado de pago
-      parameters:
-        - $ref: "#/components/parameters/ClientId"
-      responses:
-        "200":
-          description: Compras del cliente
-
-  /api/purchases/{purchaseId}/pay:
-    post:
-      tags: [Usuarios]
-      summary: Registrar pago de compra adjudicada
-      parameters:
-        - name: purchaseId
-          in: path
-          required: true
-          schema: { type: integer }
-      requestBody:
-        required: false
-        content:
-          application/json:
-            schema:
-              type: object
-              properties:
-                medioPagoId: { type: integer, nullable: true }
-                retiroPersonal: { type: string, enum: [si, no], nullable: true }
-      responses:
-        "200":
-          description: Pago registrado
-        "404":
-          description: Compra no encontrada
-
-  /api/clients/{clientId}/fines:
-    get:
-      tags: [Multas]
-      summary: Multas por impago del cliente
-      parameters:
-        - $ref: "#/components/parameters/ClientId"
-      responses:
-        "200":
-          description: Multas del cliente
-
-  /api/fines/{fineId}/pay:
-    patch:
-      tags: [Multas]
-      summary: Marcar multa como pagada
-      parameters:
-        - name: fineId
-          in: path
-          required: true
-          schema: { type: integer }
-      responses:
-        "200":
-          description: Multa pagada
-        "404":
-          description: Multa no encontrada
-    post:
-      tags: [Multas]
-      summary: Marcar multa como pagada, ruta compatible para Android
-      parameters:
-        - name: fineId
-          in: path
-          required: true
-          schema: { type: integer }
-      responses:
-        "200":
-          description: Multa pagada
-
-  /api/clients/{clientId}/notifications:
-    get:
-      tags: [Usuarios]
-      summary: Notificaciones privadas del cliente
-      parameters:
-        - $ref: "#/components/parameters/ClientId"
-      responses:
-        "200":
-          description: Notificaciones
+          description: Usuarios pendientes con fotos DNI en base64
 
   /api/admin/users/{userId}/verification:
     patch:
@@ -413,23 +498,19 @@ paths:
               required: [admitido, categoria]
               properties:
                 admitido: { type: string, enum: [si, no], example: "si" }
-                categoria: { type: string, enum: [comun, especial, plata, oro, platino], example: "plata" }
-                verificador: { type: integer, nullable: true, example: 4 }
+                categoria:
+                  type: string
+                  enum: [comun, especial, plata, oro, platino]
+                  example: "plata"
       responses:
         "200":
           description: Verificacion actualizada
-
-  /api/admin/users/pending:
-    get:
-      tags: [Admin]
-      summary: Listar usuarios pendientes de verificacion
-      responses:
-        "200":
-          description: Usuarios pendientes
+        "404":
+          description: Usuario no encontrado
 
   /api/admin/payment-methods/pending:
     get:
-      tags: [Admin, Medios de pago]
+      tags: [Admin]
       summary: Listar medios de pago pendientes de verificacion
       responses:
         "200":
@@ -437,7 +518,7 @@ paths:
 
   /api/admin/payment-methods/{paymentMethodId}/verification:
     patch:
-      tags: [Admin, Medios de pago]
+      tags: [Admin]
       summary: Verificar o rechazar medio de pago
       parameters:
         - name: paymentMethodId
@@ -453,23 +534,25 @@ paths:
               required: [verificado]
               properties:
                 verificado: { type: string, enum: [si, no], example: "si" }
+                rechazado: { type: string, enum: [si, no], nullable: true }
+                motivoRechazo: { type: string, nullable: true }
       responses:
         "200":
           description: Verificacion actualizada
 
   /api/admin/products/pending:
     get:
-      tags: [Admin, Consignacion]
-      summary: Listar consignaciones pendientes
+      tags: [Admin]
+      summary: Listar consignaciones pendientes de revision
+      description: Incluye subasta preferida del consignante (subastaPreferida, subastaUbicacion, subastaFecha).
       responses:
         "200":
-          description: Productos pendientes
+          description: Productos pendientes con info de subasta preferida
 
   /api/admin/products/{productId}/review:
     patch:
       tags: [Admin]
-      summary: Revisar consignacion
-      description: Acepta o rechaza el bien, permite informar deposito, seguro y motivo de rechazo.
+      summary: Revisar consignacion — aceptar o rechazar
       parameters:
         - name: productId
           in: path
@@ -483,19 +566,21 @@ paths:
               type: object
               required: [estadoAprobacion]
               properties:
-                estadoAprobacion: { type: string, enum: [aceptado, rechazado], example: "aceptado" }
+                estadoAprobacion:
+                  type: string
+                  enum: [aceptado, rechazado]
+                  example: "aceptado"
                 motivoRechazo: { type: string, nullable: true }
                 ubicacionDeposito: { type: string, nullable: true, example: "Deposito A - Estante 3" }
                 seguro: { type: string, nullable: true, example: "POL-ALE-001" }
-                revisor: { type: integer, nullable: true, example: 4 }
       responses:
         "200":
           description: Revision actualizada
 
   /api/admin/auctions/{auctionId}/items:
     post:
-      tags: [Admin, Subastas]
-      summary: Asignar producto aceptado a una subasta
+      tags: [Admin]
+      summary: Asignar producto aceptado a una subasta (crear item de catalogo)
       parameters:
         - $ref: "#/components/parameters/AuctionId"
       requestBody:
@@ -509,52 +594,50 @@ paths:
                 productId: { type: integer, example: 3 }
                 precioBase: { type: number, example: 10000 }
                 comision: { type: number, example: 1200 }
-                responsable: { type: integer, nullable: true }
       responses:
         "201":
-          description: Producto asignado
+          description: Item de catalogo creado
+        "400":
+          description: Datos invalidos o producto no aceptado
 
-  /api/admin/auctions/{auctionId}/items/{itemId}/close:
-    post:
-      tags: [Admin, Subastas]
-      summary: Cerrar item, adjudicar ganador y generar venta
+  /api/admin/auctions/{auctionId}/duracion:
+    patch:
+      tags: [Admin]
+      summary: Cambiar la duracion del timer por item en una subasta
+      description: >
+        Actualiza duracionItemMinutos (1 a 60). El nuevo valor se aplica
+        en el siguiente ciclo SSE. Default al crear la subasta: 3 minutos.
       parameters:
         - $ref: "#/components/parameters/AuctionId"
-        - $ref: "#/components/parameters/ItemId"
-      requestBody:
-        required: false
-        content:
-          application/json:
-            schema:
-              type: object
-              properties:
-                medioPagoId: { type: integer, nullable: true }
-                costoEnvio: { type: number, nullable: true }
-                retiroPersonal: { type: string, enum: [si, no], nullable: true }
-      responses:
-        "201":
-          description: Venta generada
-        "200":
-          description: Item cerrado sin pujas
-
-  /api/admin/fines:
-    post:
-      tags: [Admin, Multas]
-      summary: Registrar multa por impago
       requestBody:
         required: true
         content:
           application/json:
             schema:
               type: object
-              required: [clienteId, subastaId, monto]
+              required: [minutos]
               properties:
-                clienteId: { type: integer, example: 3 }
-                subastaId: { type: integer, example: 1 }
-                monto: { type: number, format: double, example: 1500 }
+                minutos:
+                  type: integer
+                  minimum: 1
+                  maximum: 60
+                  example: 5
       responses:
-        "201":
-          description: Multa creada
+        "200":
+          description: Duracion actualizada
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  ok: { type: boolean }
+                  duracionItemMinutos: { type: integer }
+        "400":
+          description: Valor fuera de rango (debe ser entre 1 y 60)
+        "404":
+          description: Subasta no encontrada
+
+# ── Components ────────────────────────────────────────────────────────────────
 
 components:
   securitySchemes:
@@ -562,6 +645,7 @@ components:
       type: http
       scheme: bearer
       bearerFormat: JWT
+      description: Token obtenido en /api/auth/login. Implementacion demo en base64 JSON, no JWT real.
 
   parameters:
     UserId:
@@ -596,9 +680,8 @@ components:
         email: { type: string, nullable: true, example: "monica@test.com" }
         telefono: { type: string, nullable: true, example: "1155559999" }
         direccion: { type: string, example: "Av. Cabildo 1234, CABA" }
-        numeroPais: { type: integer, nullable: true, example: 32 }
-        fotoDniFrente: { type: string, format: byte, example: "base64..." }
-        fotoDniDorso: { type: string, format: byte, example: "base64..." }
+        fotoDniFrente: { type: string, format: byte, description: "Foto frontal del DNI en base64" }
+        fotoDniDorso: { type: string, format: byte, description: "Foto dorso del DNI en base64" }
 
     MedioPago:
       type: object
@@ -621,16 +704,21 @@ components:
         duenio: { type: integer, example: 1 }
         descripcionCatalogo: { type: string, example: "Reloj antiguo de coleccion" }
         descripcionCompleta: { type: string, example: "Reloj de coleccion en excelente estado" }
-        historia: { type: string, nullable: true, example: "Pieza familiar conservada desde 1950" }
+        historia: { type: string, nullable: true, example: "Pieza familiar desde 1950" }
         artistaDiseniador: { type: string, nullable: true, example: "Sin identificar" }
         fechaObjeto: { type: string, format: date, nullable: true, example: "1950-01-01" }
         precioBaseSugerido: { type: number, nullable: true, example: 10000 }
         declaracionPropiedad: { type: string, enum: [si], example: "si" }
         origenLicito: { type: string, enum: [si], example: "si" }
+        subastaId:
+          type: integer
+          nullable: true
+          example: 2
+          description: ID de subasta destino preferida por el consignante (opcional)
         fotos:
           type: array
           minItems: 6
           items:
             type: string
             format: byte
-          example: ["base64foto1", "base64foto2", "base64foto3", "base64foto4", "base64foto5", "base64foto6"]
+          description: Minimo 6 fotos del articulo en base64
