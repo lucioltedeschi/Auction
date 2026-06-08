@@ -6,12 +6,10 @@ import android.graphics.Color;
 import android.os.Bundle;
 import android.os.Handler;
 import android.os.Looper;
+import android.view.Gravity;
 import android.view.View;
-import android.widget.ArrayAdapter;
 import android.widget.Button;
 import android.widget.LinearLayout;
-import android.widget.EditText;
-import android.widget.Spinner;
 import android.widget.TextView;
 
 import androidx.appcompat.app.AppCompatActivity;
@@ -22,31 +20,18 @@ import org.json.JSONObject;
 import java.io.BufferedReader;
 import java.io.InputStream;
 import java.io.InputStreamReader;
-import java.io.OutputStream;
 import java.net.HttpURLConnection;
 import java.net.URL;
-import java.nio.charset.StandardCharsets;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 
 public class PaymentMethodsActivity extends AppCompatActivity {
 
     private TextView txtMensajeMediosPago;
-    private Spinner spTipoMedioPago;
-    private Spinner spMonedaMedioPago;
-    private Spinner spEsExtranjera;
-    private EditText edtEntidadMedioPago;
-    private EditText edtReferenciaMedioPago;
-    private EditText edtMontoCheque;
-    private Button btnNuevaCuentaBancaria;
-    private Button btnNuevaTarjetaCredito;
-    private Button btnNuevoChequeCertificado;
-    private Button btnAgregarMedioPago;
-    private Button btnActualizarMediosPago;
-    private Button btnVolverDesdeMediosPago;
     private LinearLayout contenedorMediosPago;
 
     private int userId;
+    private String token;
 
     private final ExecutorService executor = Executors.newSingleThreadExecutor();
     private final Handler mainHandler = new Handler(Looper.getMainLooper());
@@ -56,32 +41,20 @@ public class PaymentMethodsActivity extends AppCompatActivity {
         super.onCreate(savedInstanceState);
         setContentView(R.layout.activity_payment_methods);
 
+        getWindow().setStatusBarColor(android.graphics.Color.parseColor("#071827"));
+        getWindow().setNavigationBarColor(android.graphics.Color.parseColor("#F3F0E8"));
+
         txtMensajeMediosPago = findViewById(R.id.txtMensajeMediosPago);
-        spTipoMedioPago = findViewById(R.id.spTipoMedioPago);
-        spMonedaMedioPago = findViewById(R.id.spMonedaMedioPago);
-        spEsExtranjera = findViewById(R.id.spEsExtranjera);
-        edtEntidadMedioPago = findViewById(R.id.edtEntidadMedioPago);
-        edtReferenciaMedioPago = findViewById(R.id.edtReferenciaMedioPago);
-        edtMontoCheque = findViewById(R.id.edtMontoCheque);
-        btnNuevaCuentaBancaria = findViewById(R.id.btnNuevaCuentaBancaria);
-        btnNuevaTarjetaCredito = findViewById(R.id.btnNuevaTarjetaCredito);
-        btnNuevoChequeCertificado = findViewById(R.id.btnNuevoChequeCertificado);
-        btnAgregarMedioPago = findViewById(R.id.btnAgregarMedioPago);
-        btnActualizarMediosPago = findViewById(R.id.btnActualizarMediosPago);
-        btnVolverDesdeMediosPago = findViewById(R.id.btnVolverDesdeMediosPago);
         contenedorMediosPago = findViewById(R.id.contenedorMediosPago);
 
         SharedPreferences preferences = getSharedPreferences("sesion", MODE_PRIVATE);
         userId = preferences.getInt("userId", 0);
+        token = preferences.getString("token", "");
 
-        configurarSpinners();
-
-        btnNuevaCuentaBancaria.setOnClickListener(v -> abrirFlujoMedioPago("cuenta_bancaria"));
-        btnNuevaTarjetaCredito.setOnClickListener(v -> abrirFlujoMedioPago("tarjeta_credito"));
-        btnNuevoChequeCertificado.setOnClickListener(v -> abrirFlujoMedioPago("cheque_certificado"));
-        btnAgregarMedioPago.setOnClickListener(v -> validarYAgregarMedioPago());
-        btnActualizarMediosPago.setOnClickListener(v -> cargarMediosPago());
-        btnVolverDesdeMediosPago.setOnClickListener(v -> finish());
+        findViewById(R.id.btnBackMediosPago).setOnClickListener(v -> finish());
+        findViewById(R.id.btnNuevaCuentaBancaria).setOnClickListener(v -> abrirFlujo("cuenta_bancaria"));
+        findViewById(R.id.btnNuevaTarjetaCredito).setOnClickListener(v -> abrirFlujo("tarjeta_credito"));
+        findViewById(R.id.btnNuevoChequeCertificado).setOnClickListener(v -> abrirFlujo("cheque_certificado"));
 
         cargarMediosPago();
     }
@@ -89,333 +62,216 @@ public class PaymentMethodsActivity extends AppCompatActivity {
     @Override
     protected void onResume() {
         super.onResume();
-        if (contenedorMediosPago != null) {
-            cargarMediosPago();
-        }
+        cargarMediosPago();
     }
 
-    private void abrirFlujoMedioPago(String tipo) {
-        Intent intent = new Intent(PaymentMethodsActivity.this, PaymentMethodFormActivity.class);
+    private void abrirFlujo(String tipo) {
+        Intent intent = new Intent(this, PaymentMethodFormActivity.class);
         intent.putExtra("tipo", tipo);
         startActivity(intent);
     }
 
-    private void configurarSpinners() {
-        ArrayAdapter<String> tipos = new ArrayAdapter<>(
-                this,
-                android.R.layout.simple_spinner_dropdown_item,
-                new String[]{"Cuenta bancaria", "Tarjeta de crédito", "Cheque certificado"}
-        );
-        spTipoMedioPago.setAdapter(tipos);
-
-        ArrayAdapter<String> monedas = new ArrayAdapter<>(
-                this,
-                android.R.layout.simple_spinner_dropdown_item,
-                new String[]{"Pesos", "Dólares"}
-        );
-        spMonedaMedioPago.setAdapter(monedas);
-
-        ArrayAdapter<String> extranjera = new ArrayAdapter<>(
-                this,
-                android.R.layout.simple_spinner_dropdown_item,
-                new String[]{"Nacional", "Extranjera"}
-        );
-        spEsExtranjera.setAdapter(extranjera);
-    }
-
-    private void validarYAgregarMedioPago() {
-        String entidad = edtEntidadMedioPago.getText().toString().trim();
-        String referencia = edtReferenciaMedioPago.getText().toString().trim();
-        String montoCheque = edtMontoCheque.getText().toString().trim();
-        String tipo = obtenerTipoSeleccionado();
-
-        if (entidad.isEmpty() || referencia.isEmpty()) {
-            txtMensajeMediosPago.setText("Completá entidad y referencia del medio de pago.");
-            return;
-        }
-
-        if (tipo.equals("cheque_certificado") && montoCheque.isEmpty()) {
-            txtMensajeMediosPago.setText("Para cheque certificado informá el monto reservado.");
-            return;
-        }
-
-        btnAgregarMedioPago.setEnabled(false);
-        btnAgregarMedioPago.setText("Registrando...");
-        txtMensajeMediosPago.setText("");
-
-        agregarMedioPago(tipo, entidad, referencia, montoCheque);
-    }
-
-    private String obtenerTipoSeleccionado() {
-        int posicion = spTipoMedioPago.getSelectedItemPosition();
-        if (posicion == 1) return "tarjeta_credito";
-        if (posicion == 2) return "cheque_certificado";
-        return "cuenta_bancaria";
-    }
-
-    private String obtenerMonedaSeleccionada() {
-        return spMonedaMedioPago.getSelectedItemPosition() == 1 ? "dolares" : "pesos";
-    }
-
-    private String obtenerExtranjeraSeleccionada() {
-        return spEsExtranjera.getSelectedItemPosition() == 1 ? "si" : "no";
-    }
-
-    private void agregarMedioPago(
-            String tipo,
-            String entidad,
-            String referencia,
-            String montoCheque
-    ) {
-        final String moneda = obtenerMonedaSeleccionada();
-        final String esExtranjera = obtenerExtranjeraSeleccionada();
+    private void cargarMediosPago() {
+        txtMensajeMediosPago.setText("Cargando...");
+        contenedorMediosPago.removeAllViews();
 
         executor.execute(() -> {
             HttpURLConnection connection = null;
-
             try {
                 URL url = new URL(ApiConfig.BASE_URL + "/api/clients/" + userId + "/payment-methods");
                 connection = (HttpURLConnection) url.openConnection();
-
-                connection.setRequestMethod("POST");
-                connection.setRequestProperty("Content-Type", "application/json; charset=UTF-8");
+                connection.setRequestMethod("GET");
                 connection.setRequestProperty("Accept", "application/json");
-                connection.setDoOutput(true);
-
-                JSONObject body = new JSONObject();
-                body.put("tipo", tipo);
-                body.put("entidad", entidad);
-                body.put("numeroReferencia", referencia);
-                body.put("moneda", moneda);
-                body.put("esExtranjera", esExtranjera);
-
-                if (tipo.equals("cheque_certificado")) {
-                    body.put("montoCheque", Double.parseDouble(montoCheque));
-                }
-
-                try (OutputStream os = connection.getOutputStream()) {
-                    byte[] input = body.toString().getBytes(StandardCharsets.UTF_8);
-                    os.write(input, 0, input.length);
-                }
+                connection.setRequestProperty("Authorization", "Bearer " + token);
 
                 int statusCode = connection.getResponseCode();
                 InputStream inputStream = statusCode >= 200 && statusCode < 300
-                        ? connection.getInputStream()
-                        : connection.getErrorStream();
-
-                String respuesta = leerRespuesta(inputStream);
-                JSONObject json = new JSONObject(respuesta);
-
-                mainHandler.post(() -> {
-                    btnAgregarMedioPago.setEnabled(true);
-                    btnAgregarMedioPago.setText("Registrar medio de pago");
-
-                    if (statusCode == 201) {
-                        txtMensajeMediosPago.setText(json.optString(
-                                "mensaje",
-                                "Medio de pago registrado. Queda pendiente de verificación."
-                        ));
-                        edtEntidadMedioPago.setText("");
-                        edtReferenciaMedioPago.setText("");
-                        edtMontoCheque.setText("");
-                        cargarMediosPago();
-                    } else {
-                        txtMensajeMediosPago.setText(json.optString(
-                                "error",
-                                "No se pudo registrar el medio de pago."
-                        ));
-                    }
-                });
-            } catch (Exception e) {
-                mainHandler.post(() -> {
-                    btnAgregarMedioPago.setEnabled(true);
-                    btnAgregarMedioPago.setText("Registrar medio de pago");
-                    txtMensajeMediosPago.setText("No se pudo conectar con el servidor.");
-                });
-            } finally {
-                if (connection != null) {
-                    connection.disconnect();
-                }
-            }
-        });
-    }
-
-    private void cargarMediosPago() {
-        txtMensajeMediosPago.setText("Cargando medios de pago...");
-        contenedorMediosPago.removeAllViews();
-
-        executor.execute(() -> {
-            HttpURLConnection connection = null;
-
-            try {
-                URL url = new URL(ApiConfig.BASE_URL + "/api/clients/" + userId + "/payment-methods");
-                connection = (HttpURLConnection) url.openConnection();
-
-                connection.setRequestMethod("GET");
-                connection.setRequestProperty("Accept", "application/json");
-
-                int statusCode = connection.getResponseCode();
-
-                InputStream inputStream;
-
-                if (statusCode >= 200 && statusCode < 300) {
-                    inputStream = connection.getInputStream();
-                } else {
-                    inputStream = connection.getErrorStream();
-                }
-
+                        ? connection.getInputStream() : connection.getErrorStream();
                 String respuesta = leerRespuesta(inputStream);
 
                 if (statusCode == 200) {
-                    JSONArray mediosPago = new JSONArray(respuesta);
-                    mainHandler.post(() -> mostrarMediosPago(mediosPago));
+                    JSONArray medios = new JSONArray(respuesta);
+                    mainHandler.post(() -> mostrarMedios(medios));
                 } else {
-                    JSONObject errorJson = new JSONObject(respuesta);
-                    String error = errorJson.optString("error", "Error al cargar medios de pago");
-                    mainHandler.post(() -> txtMensajeMediosPago.setText(error));
+                    JSONObject err = new JSONObject(respuesta);
+                    mainHandler.post(() -> txtMensajeMediosPago.setText(err.optString("error", "Error al cargar")));
                 }
-
             } catch (Exception e) {
                 mainHandler.post(() -> txtMensajeMediosPago.setText("No se pudo conectar con el servidor."));
             } finally {
-                if (connection != null) {
-                    connection.disconnect();
-                }
+                if (connection != null) connection.disconnect();
             }
         });
     }
 
-    private void mostrarMediosPago(JSONArray mediosPago) {
+    private void mostrarMedios(JSONArray medios) {
         contenedorMediosPago.removeAllViews();
-
-        if (mediosPago.length() == 0) {
-            txtMensajeMediosPago.setText("No tenés medios de pago registrados.");
+        if (medios.length() == 0) {
+            txtMensajeMediosPago.setText("No tenés métodos de pago registrados.");
             return;
         }
-
-        txtMensajeMediosPago.setText("Medios de pago encontrados: " + mediosPago.length());
+        txtMensajeMediosPago.setText(medios.length() == 1 ? "1 método registrado" : medios.length() + " métodos registrados");
 
         try {
-            for (int i = 0; i < mediosPago.length(); i++) {
-                JSONObject medio = mediosPago.getJSONObject(i);
-
-                int id = medio.getInt("id");
-                String tipo = medio.optString("tipo", "-");
-                String entidad = medio.optString("entidad", "-");
-                String numeroReferencia = medio.optString("numeroReferencia", "-");
-                String esExtranjera = medio.optString("esExtranjera", "-");
-                String moneda = medio.optString("moneda", "-");
-                String verificado = medio.optString("verificado", "-");
-                double montoCheque = medio.optDouble("montoCheque", 0);
-                double montoDisponible = medio.optDouble("montoDisponible", 0);
-
-                View card = crearCardMedioPago(
-                        id,
-                        tipo,
-                        entidad,
-                        numeroReferencia,
-                        esExtranjera,
-                        moneda,
-                        verificado,
-                        montoCheque,
-                        montoDisponible
-                );
-
-                contenedorMediosPago.addView(card);
+            for (int i = 0; i < medios.length(); i++) {
+                contenedorMediosPago.addView(crearCard(medios.getJSONObject(i)));
             }
-
         } catch (Exception e) {
-            txtMensajeMediosPago.setText("Error mostrando medios de pago.");
+            txtMensajeMediosPago.setText("Error mostrando métodos.");
         }
     }
 
-    private View crearCardMedioPago(
-            int id,
-            String tipo,
-            String entidad,
-            String numeroReferencia,
-            String esExtranjera,
-            String moneda,
-            String verificado,
-            double montoCheque,
-            double montoDisponible
-    ) {
+    private View crearCard(JSONObject medio) throws Exception {
+        int id = medio.getInt("id");
+        String tipo = medio.optString("tipo", "-");
+        String entidad = medio.optString("entidad", "-");
+        String ref = medio.optString("numeroReferencia", "-");
+        String moneda = medio.optString("moneda", "-");
+        String verificado = medio.optString("verificado", "-");
+
+        float d = getResources().getDisplayMetrics().density;
+
         LinearLayout card = new LinearLayout(this);
         card.setOrientation(LinearLayout.VERTICAL);
-        card.setPadding(28, 24, 28, 24);
-        card.setBackgroundColor(Color.WHITE);
+        card.setPadding((int)(18*d),(int)(18*d),(int)(18*d),(int)(18*d));
+        card.setBackgroundResource(R.drawable.bg_card_premium);
+        card.setElevation(2*d);
+        LinearLayout.LayoutParams cp = new LinearLayout.LayoutParams(
+                LinearLayout.LayoutParams.MATCH_PARENT, LinearLayout.LayoutParams.WRAP_CONTENT);
+        cp.setMargins(0, 0, 0, (int)(16*d));
+        card.setLayoutParams(cp);
 
-        LinearLayout.LayoutParams params = new LinearLayout.LayoutParams(
-                LinearLayout.LayoutParams.MATCH_PARENT,
-                LinearLayout.LayoutParams.WRAP_CONTENT
-        );
+        // Header row: icon + type + chip
+        LinearLayout header = new LinearLayout(this);
+        header.setOrientation(LinearLayout.HORIZONTAL);
+        header.setGravity(Gravity.CENTER_VERTICAL);
 
-        params.setMargins(0, 0, 0, 22);
-        card.setLayoutParams(params);
-        card.setElevation(4);
+        TextView iconTv = new TextView(this);
+        iconTv.setText(tipoIcono(tipo));
+        iconTv.setTextSize(22);
 
-        TextView titulo = new TextView(this);
-        titulo.setText("Medio de pago #" + id);
-        titulo.setTextSize(18);
-        titulo.setTextColor(Color.parseColor("#0F172A"));
-        titulo.setTypeface(null, android.graphics.Typeface.BOLD);
+        LinearLayout.LayoutParams iconP = new LinearLayout.LayoutParams(
+                LinearLayout.LayoutParams.WRAP_CONTENT, LinearLayout.LayoutParams.WRAP_CONTENT);
+        iconP.setMargins(0, 0, (int)(10*d), 0);
+        iconTv.setLayoutParams(iconP);
 
-        TextView detalle = new TextView(this);
+        TextView tipoTv = new TextView(this);
+        tipoTv.setText(formatTipo(tipo));
+        tipoTv.setTextSize(15);
+        tipoTv.setTextColor(Color.parseColor("#071827"));
+        tipoTv.setTypeface(null, android.graphics.Typeface.BOLD);
+        LinearLayout.LayoutParams tipoP = new LinearLayout.LayoutParams(
+                0, LinearLayout.LayoutParams.WRAP_CONTENT, 1);
+        tipoTv.setLayoutParams(tipoP);
 
-        String textoDetalle =
-                "Tipo: " + formatearTipo(tipo) + "\n" +
-                        "Entidad: " + entidad + "\n" +
-                        "Referencia: " + numeroReferencia + "\n" +
-                        "Extranjera: " + esExtranjera + "\n" +
-                        "Moneda: " + moneda + "\n" +
-                        "Verificado: " + verificado;
-
-        if (tipo.equals("cheque_certificado")) {
-            textoDetalle += "\nMonto cheque: $" + montoCheque;
-            textoDetalle += "\nMonto disponible: $" + montoDisponible;
-        }
-
-        detalle.setText(textoDetalle);
-        detalle.setTextSize(15);
-        detalle.setTextColor(Color.parseColor("#475569"));
-        detalle.setPadding(0, 12, 0, 12);
-
-        TextView estado = new TextView(this);
-
-        if (verificado.equals("si")) {
-            estado.setText("Medio de pago habilitado");
-            estado.setTextColor(Color.parseColor("#16A34A"));
+        TextView chipTv = new TextView(this);
+        if ("si".equals(verificado)) {
+            chipTv.setText("VERIFICADO");
+            chipTv.setTextColor(Color.parseColor("#166534"));
+            chipTv.setBackgroundResource(R.drawable.bg_success_chip);
         } else {
-            estado.setText("Pendiente de verificación");
-            estado.setTextColor(Color.parseColor("#DC2626"));
+            chipTv.setText("PENDIENTE");
+            chipTv.setTextColor(Color.parseColor("#991B1B"));
+            chipTv.setBackgroundResource(R.drawable.bg_danger_chip);
         }
+        chipTv.setTextSize(10);
+        chipTv.setTypeface(null, android.graphics.Typeface.BOLD);
+        chipTv.setPadding((int)(10*d),(int)(4*d),(int)(10*d),(int)(4*d));
 
-        estado.setTextSize(14);
-        estado.setTypeface(null, android.graphics.Typeface.BOLD);
+        header.addView(iconTv);
+        header.addView(tipoTv);
+        header.addView(chipTv);
 
-        card.addView(titulo);
-        card.addView(detalle);
-        card.addView(estado);
+        // Entity
+        TextView entidadTv = new TextView(this);
+        entidadTv.setText(entidad + "  ·  " + moneda.toUpperCase());
+        entidadTv.setTextSize(13);
+        entidadTv.setTextColor(Color.parseColor("#475569"));
+        LinearLayout.LayoutParams entP = new LinearLayout.LayoutParams(
+                LinearLayout.LayoutParams.MATCH_PARENT, LinearLayout.LayoutParams.WRAP_CONTENT);
+        entP.setMargins(0, (int)(8*d), 0, 0);
+        entidadTv.setLayoutParams(entP);
 
+        // Masked reference
+        String refDisplay = mascararRef(tipo, ref);
+        TextView refTv = new TextView(this);
+        refTv.setText(refDisplay);
+        refTv.setTextSize(12);
+        refTv.setTextColor(Color.parseColor("#94A3B8"));
+        LinearLayout.LayoutParams refP = new LinearLayout.LayoutParams(
+                LinearLayout.LayoutParams.MATCH_PARENT, LinearLayout.LayoutParams.WRAP_CONTENT);
+        refP.setMargins(0, (int)(4*d), 0, 0);
+        refTv.setLayoutParams(refP);
+
+        // Edit button
+        Button editBtn = new Button(this);
+        editBtn.setText("MODIFICAR");
+        editBtn.setTextColor(Color.parseColor("#071827"));
+        editBtn.setTextSize(12);
+        editBtn.setTypeface(null, android.graphics.Typeface.BOLD);
+        editBtn.setBackgroundResource(R.drawable.bg_button_outline);
+        LinearLayout.LayoutParams btnP = new LinearLayout.LayoutParams(
+                LinearLayout.LayoutParams.MATCH_PARENT, (int)(46*d));
+        btnP.setMargins(0, (int)(14*d), 0, 0);
+        editBtn.setLayoutParams(btnP);
+        editBtn.setOnClickListener(v -> {
+            Intent intent = new Intent(PaymentMethodsActivity.this, PaymentMethodFormActivity.class);
+            intent.putExtra("medioPagoId", id);
+            intent.putExtra("tipo", tipo);
+            intent.putExtra("entidad", entidad);
+            intent.putExtra("numeroReferencia", ref);
+            intent.putExtra("moneda", moneda);
+            intent.putExtra("esExtranjera", medio.optString("esExtranjera", "no"));
+            intent.putExtra("montoCheque", medio.optDouble("montoCheque", 0));
+            startActivity(intent);
+        });
+
+        card.addView(header);
+        card.addView(entidadTv);
+        card.addView(refTv);
+        card.addView(editBtn);
         return card;
     }
 
-    private String formatearTipo(String tipo) {
-        if (tipo.equals("tarjeta_credito")) return "Tarjeta de crédito";
-        if (tipo.equals("cuenta_bancaria")) return "Cuenta bancaria";
-        if (tipo.equals("cheque_certificado")) return "Cheque certificado";
+    private String tipoIcono(String tipo) {
+        if ("tarjeta_credito".equals(tipo)) return "💳";
+        if ("cheque_certificado".equals(tipo)) return "📋";
+        return "🏦";
+    }
+
+    private String formatTipo(String tipo) {
+        if ("tarjeta_credito".equals(tipo)) return "Tarjeta de crédito";
+        if ("cuenta_bancaria".equals(tipo)) return "Cuenta bancaria";
+        if ("cheque_certificado".equals(tipo)) return "Cheque certificado";
         return tipo;
     }
 
-    private String leerRespuesta(InputStream inputStream) throws Exception {
-        BufferedReader reader = new BufferedReader(new InputStreamReader(inputStream));
-        StringBuilder respuesta = new StringBuilder();
-        String linea;
-
-        while ((linea = reader.readLine()) != null) {
-            respuesta.append(linea);
+    private String mascararRef(String tipo, String ref) {
+        if ("tarjeta_credito".equals(tipo)) {
+            // ref is compound "Tarjeta XXXX | Titular ... | Vence MM/AA | CVV ..."
+            // Show only last 4 digits hint
+            int idx = ref.indexOf("Tarjeta ");
+            if (idx >= 0) {
+                String after = ref.substring(idx + 8).trim();
+                // after is something like "1234567890 | Titular..."
+                String[] parts = after.split("\\|");
+                if (parts.length > 0) {
+                    String num = parts[0].trim().replaceAll("\\s", "");
+                    String last4 = num.length() > 4 ? "•••• " + num.substring(num.length() - 4) : num;
+                    return last4;
+                }
+            }
+            return "•••• ••••";
         }
+        if (ref.length() > 8) return "•••••" + ref.substring(ref.length() - 4);
+        return ref;
+    }
 
-        return respuesta.toString();
+    private String leerRespuesta(InputStream is) throws Exception {
+        BufferedReader r = new BufferedReader(new InputStreamReader(is));
+        StringBuilder sb = new StringBuilder();
+        String l;
+        while ((l = r.readLine()) != null) sb.append(l);
+        return sb.toString();
     }
 }

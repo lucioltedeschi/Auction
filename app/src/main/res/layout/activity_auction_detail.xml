@@ -1,18 +1,129 @@
 <?xml version="1.0" encoding="utf-8"?>
 <LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
-    android:id="@+id/rootAuctionDetail"
     android:layout_width="match_parent"
     android:layout_height="match_parent"
     android:background="#F3F0E8"
     android:fitsSystemWindows="true"
     android:orientation="vertical">
 
+    <!-- ─── STICKY TOP BAR ──────────────────────────────────────────── -->
+    <LinearLayout
+        android:id="@+id/topBar"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:background="#071827"
+        android:elevation="6dp"
+        android:gravity="center_vertical"
+        android:orientation="horizontal"
+        android:paddingLeft="12dp"
+        android:paddingTop="10dp"
+        android:paddingRight="14dp"
+        android:paddingBottom="10dp">
+
+        <!-- Botón volver -->
+        <TextView
+            android:id="@+id/btnBack"
+            android:layout_width="36dp"
+            android:layout_height="36dp"
+            android:background="@drawable/bg_nav_icon_circle"
+            android:gravity="center"
+            android:text="←"
+            android:textColor="#FFFFFF"
+            android:textSize="18sp"
+            android:textStyle="bold" />
+
+        <!-- Centro: nombre app + número de subasta + estado -->
+        <LinearLayout
+            android:layout_width="0dp"
+            android:layout_height="wrap_content"
+            android:layout_marginLeft="12dp"
+            android:layout_weight="1"
+            android:orientation="vertical">
+
+            <TextView
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:letterSpacing="0.10"
+                android:text="AUCT.IO"
+                android:textColor="#FFFFFF"
+                android:textSize="17sp"
+                android:textStyle="bold" />
+
+            <LinearLayout
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:layout_marginTop="2dp"
+                android:gravity="center_vertical"
+                android:orientation="horizontal">
+
+                <TextView
+                    android:id="@+id/txtTopBarSubasta"
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:text="SUBASTA #—"
+                    android:textColor="#A8872F"
+                    android:textSize="10sp"
+                    android:textStyle="bold"
+                    android:letterSpacing="0.08" />
+
+                <TextView
+                    android:id="@+id/txtTopBarStatus"
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:layout_marginLeft="8dp"
+                    android:background="@drawable/bg_success_chip"
+                    android:paddingLeft="8dp"
+                    android:paddingTop="2dp"
+                    android:paddingRight="8dp"
+                    android:paddingBottom="2dp"
+                    android:text="HABILITADO"
+                    android:textColor="#166534"
+                    android:textSize="9sp"
+                    android:textStyle="bold"
+                    android:visibility="gone" />
+
+            </LinearLayout>
+
+        </LinearLayout>
+
+        <!-- Derecha: método de pago -->
+        <LinearLayout
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:gravity="end"
+            android:orientation="vertical">
+
+            <TextView
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:text="MEDIO DE PAGO"
+                android:textColor="#64748B"
+                android:textSize="8sp"
+                android:textStyle="bold"
+                android:letterSpacing="0.08" />
+
+            <TextView
+                android:id="@+id/txtTopBarPago"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:layout_marginTop="2dp"
+                android:text="Cargando…"
+                android:textColor="#D7E3EF"
+                android:textSize="11sp"
+                android:textStyle="bold" />
+
+        </LinearLayout>
+
+    </LinearLayout>
+
+    <!-- ─── SCROLLABLE CONTENT ──────────────────────────────────────── -->
     <ScrollView
+        android:id="@+id/scrollViewAuction"
         android:layout_width="match_parent"
         android:layout_height="0dp"
         android:layout_weight="1"
         android:fillViewport="true"
-        android:paddingTop="18dp">
+        android:paddingTop="16dp">
 
         <LinearLayout
             android:layout_width="match_parent"
@@ -22,150 +133,282 @@
             android:paddingRight="18dp"
             android:paddingBottom="28dp">
 
-            <!-- HEADER -->
+            <!-- COLLAPSIBLE AUCTION INFO ──────────────────────────── -->
             <LinearLayout
                 android:layout_width="match_parent"
                 android:layout_height="wrap_content"
-                android:gravity="center_vertical"
-                android:orientation="horizontal">
+                android:background="@drawable/bg_card_dark_premium"
+                android:elevation="2dp"
+                android:orientation="vertical">
 
-                <ImageView
-                    android:layout_width="46dp"
-                    android:layout_height="46dp"
-                    android:background="@drawable/bg_icon_circle"
-                    android:padding="9dp"
-                    android:src="@drawable/ic_gavel" />
-
+                <!-- Header row – always visible, tap to expand/collapse -->
                 <LinearLayout
-                    android:layout_width="0dp"
+                    android:id="@+id/collapseHeader"
+                    android:layout_width="match_parent"
                     android:layout_height="wrap_content"
-                    android:layout_marginLeft="12dp"
-                    android:layout_weight="1"
-                    android:orientation="vertical">
+                    android:gravity="center_vertical"
+                    android:orientation="horizontal"
+                    android:padding="18dp"
+                    android:clickable="true"
+                    android:focusable="true"
+                    android:background="?attr/selectableItemBackground">
 
                     <TextView
-                        android:layout_width="match_parent"
+                        android:id="@+id/txtDatosResumen"
+                        android:layout_width="0dp"
                         android:layout_height="wrap_content"
-                        android:letterSpacing="0.10"
-                        android:text="AUCT.IO"
-                        android:textColor="#071827"
-                        android:textSize="23sp"
+                        android:layout_weight="1"
+                        android:text="Cargando datos..."
+                        android:textColor="#D7E3EF"
+                        android:textSize="14sp"
                         android:textStyle="bold" />
 
                     <TextView
+                        android:id="@+id/txtChevron"
+                        android:layout_width="28dp"
+                        android:layout_height="28dp"
+                        android:gravity="center"
+                        android:text="▼"
+                        android:textColor="#A8872F"
+                        android:textSize="14sp" />
+
+                </LinearLayout>
+
+                <!-- Expandable body – GONE by default -->
+                <LinearLayout
+                    android:id="@+id/collapseBody"
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:orientation="vertical"
+                    android:paddingLeft="18dp"
+                    android:paddingRight="18dp"
+                    android:paddingBottom="18dp"
+                    android:visibility="gone">
+
+                    <View
+                        android:layout_width="match_parent"
+                        android:layout_height="1dp"
+                        android:background="#1C2D3E" />
+
+                    <TextView
+                        android:id="@+id/txtDatosSubasta"
                         android:layout_width="match_parent"
                         android:layout_height="wrap_content"
-                        android:letterSpacing="0.12"
-                        android:text="CATÁLOGO EN VIVO"
-                        android:textColor="#A8872F"
+                        android:layout_marginTop="14dp"
+                        android:text=""
+                        android:textColor="#D7E3EF"
+                        android:textSize="13sp"
+                        android:lineSpacingExtra="5dp" />
+
+                </LinearLayout>
+
+            </LinearLayout>
+
+            <!-- LIVE PANEL ────────────────────────────────────────── -->
+            <LinearLayout
+                android:id="@+id/livePanel"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:layout_marginTop="16dp"
+                android:background="@drawable/bg_card_dark_premium"
+                android:elevation="3dp"
+                android:orientation="vertical"
+                android:padding="20dp">
+
+                <LinearLayout
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:gravity="center_vertical"
+                    android:orientation="horizontal">
+
+                    <TextView
+                        android:id="@+id/txtLiveChip"
+                        android:layout_width="wrap_content"
+                        android:layout_height="30dp"
+                        android:background="@drawable/bg_live_chip"
+                        android:gravity="center"
+                        android:paddingLeft="12dp"
+                        android:paddingRight="12dp"
+                        android:text="● EN VIVO"
+                        android:textColor="#166534"
                         android:textSize="10sp"
                         android:textStyle="bold" />
 
+                    <TextView
+                        android:layout_width="0dp"
+                        android:layout_height="wrap_content"
+                        android:layout_marginLeft="10dp"
+                        android:layout_weight="1"
+                        android:text="ÍTEM EN SUBASTA AHORA"
+                        android:textColor="#A8872F"
+                        android:textSize="10sp"
+                        android:textStyle="bold"
+                        android:letterSpacing="0.10" />
+
                 </LinearLayout>
 
                 <TextView
-                    android:layout_width="wrap_content"
-                    android:layout_height="34dp"
-                    android:background="@drawable/bg_live_chip"
-                    android:gravity="center"
-                    android:paddingLeft="14dp"
-                    android:paddingRight="14dp"
-                    android:text="LIVE"
-                    android:textColor="#166534"
-                    android:textSize="11sp"
-                    android:textStyle="bold" />
-
-            </LinearLayout>
-
-            <!-- HERO -->
-            <LinearLayout
-                android:layout_width="match_parent"
-                android:layout_height="wrap_content"
-                android:layout_marginTop="20dp"
-                android:background="@drawable/bg_card_dark_premium"
-                android:elevation="2dp"
-                android:orientation="vertical"
-                android:padding="24dp">
-
-                <TextView
-                    android:id="@+id/txtTituloDetalle"
-                    android:layout_width="match_parent"
-                    android:layout_height="wrap_content"
-                    android:text="Catálogo en vivo"
-                    android:textColor="#FFFFFF"
-                    android:textSize="28sp"
-                    android:textStyle="bold" />
-
-                <TextView
-                    android:id="@+id/txtDatosSubasta"
+                    android:id="@+id/txtItemVivo"
                     android:layout_width="match_parent"
                     android:layout_height="wrap_content"
                     android:layout_marginTop="12dp"
-                    android:text="Cargando datos de la subasta..."
-                    android:textColor="#D7E3EF"
-                    android:textSize="14sp"
-                    android:lineSpacingExtra="4dp" />
-
-            </LinearLayout>
-
-            <TextView
-                android:id="@+id/txtEstadoVivo"
-                android:layout_width="match_parent"
-                android:layout_height="wrap_content"
-                android:layout_marginTop="18dp"
-                android:background="@drawable/bg_metric_box"
-                android:padding="16dp"
-                android:text="Conectando estado en vivo..."
-                android:textColor="#071827"
-                android:textSize="14sp"
-                android:textStyle="bold"
-                android:lineSpacingExtra="4dp" />
-
-            <!-- SECTION -->
-            <LinearLayout
-                android:layout_width="match_parent"
-                android:layout_height="wrap_content"
-                android:layout_marginTop="28dp"
-                android:gravity="center_vertical"
-                android:orientation="horizontal">
+                    android:text="Conectando..."
+                    android:textColor="#FFFFFF"
+                    android:textSize="22sp"
+                    android:textStyle="bold"
+                    android:maxLines="2" />
 
                 <LinearLayout
-                    android:layout_width="0dp"
+                    android:layout_width="match_parent"
                     android:layout_height="wrap_content"
-                    android:layout_weight="1"
-                    android:orientation="vertical">
+                    android:layout_marginTop="16dp"
+                    android:gravity="center_vertical"
+                    android:orientation="horizontal">
 
-                    <TextView
-                        android:id="@+id/txtTituloCatalogo"
-                        android:layout_width="match_parent"
+                    <LinearLayout
+                        android:layout_width="0dp"
                         android:layout_height="wrap_content"
-                        android:text="Lotes del catálogo"
-                        android:textColor="#071827"
-                        android:textSize="24sp"
-                        android:textStyle="bold" />
+                        android:layout_weight="1"
+                        android:orientation="vertical">
 
-                    <TextView
-                        android:id="@+id/txtMensajeDetalle"
-                        android:layout_width="match_parent"
+                        <TextView
+                            android:layout_width="wrap_content"
+                            android:layout_height="wrap_content"
+                            android:text="TIEMPO RESTANTE"
+                            android:textColor="#9CA3AF"
+                            android:textSize="9sp"
+                            android:textStyle="bold"
+                            android:letterSpacing="0.10" />
+
+                        <TextView
+                            android:id="@+id/txtTiempoRestante"
+                            android:layout_width="wrap_content"
+                            android:layout_height="wrap_content"
+                            android:layout_marginTop="2dp"
+                            android:text="--:--"
+                            android:textColor="#A8872F"
+                            android:textSize="44sp"
+                            android:textStyle="bold" />
+
+                    </LinearLayout>
+
+                    <LinearLayout
+                        android:layout_width="wrap_content"
                         android:layout_height="wrap_content"
-                        android:layout_marginTop="4dp"
-                        android:text="Cargando catálogo..."
-                        android:textColor="#6B7280"
-                        android:textSize="13sp" />
+                        android:gravity="end"
+                        android:orientation="vertical">
+
+                        <TextView
+                            android:layout_width="wrap_content"
+                            android:layout_height="wrap_content"
+                            android:text="MEJOR OFERTA"
+                            android:textColor="#9CA3AF"
+                            android:textSize="9sp"
+                            android:textStyle="bold"
+                            android:letterSpacing="0.10" />
+
+                        <TextView
+                            android:id="@+id/txtMejorOfertaVivo"
+                            android:layout_width="wrap_content"
+                            android:layout_height="wrap_content"
+                            android:layout_marginTop="2dp"
+                            android:text="$—"
+                            android:textColor="#FFFFFF"
+                            android:textSize="26sp"
+                            android:textStyle="bold" />
+
+                    </LinearLayout>
 
                 </LinearLayout>
 
-                <Button
-                    android:id="@+id/btnActualizarCatalogo"
-                    android:layout_width="100dp"
-                    android:layout_height="42dp"
-                    android:background="@drawable/bg_button_gold"
-                    android:text="ACTUALIZAR"
-                    android:textColor="#071827"
-                    android:textSize="11sp"
-                    android:textStyle="bold" />
+                <LinearLayout
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:layout_marginTop="14dp"
+                    android:orientation="horizontal">
+
+                    <LinearLayout
+                        android:layout_width="0dp"
+                        android:layout_height="wrap_content"
+                        android:layout_weight="1"
+                        android:layout_marginRight="6dp"
+                        android:background="@drawable/bg_metric_box"
+                        android:orientation="vertical"
+                        android:padding="12dp">
+
+                        <TextView
+                            android:layout_width="wrap_content"
+                            android:layout_height="wrap_content"
+                            android:text="PUJA MÍNIMA"
+                            android:textColor="#A8872F"
+                            android:textSize="9sp"
+                            android:textStyle="bold"
+                            android:letterSpacing="0.08" />
+
+                        <TextView
+                            android:id="@+id/txtPujaMinimaVivo"
+                            android:layout_width="wrap_content"
+                            android:layout_height="wrap_content"
+                            android:layout_marginTop="4dp"
+                            android:text="$—"
+                            android:textColor="#071827"
+                            android:textSize="16sp"
+                            android:textStyle="bold" />
+
+                    </LinearLayout>
+
+                    <LinearLayout
+                        android:layout_width="0dp"
+                        android:layout_height="wrap_content"
+                        android:layout_weight="1"
+                        android:layout_marginLeft="6dp"
+                        android:background="@drawable/bg_metric_box"
+                        android:orientation="vertical"
+                        android:padding="12dp">
+
+                        <TextView
+                            android:layout_width="wrap_content"
+                            android:layout_height="wrap_content"
+                            android:text="PUJA MÁXIMA"
+                            android:textColor="#A8872F"
+                            android:textSize="9sp"
+                            android:textStyle="bold"
+                            android:letterSpacing="0.08" />
+
+                        <TextView
+                            android:id="@+id/txtPujaMaximaVivo"
+                            android:layout_width="wrap_content"
+                            android:layout_height="wrap_content"
+                            android:layout_marginTop="4dp"
+                            android:text="sin límite"
+                            android:textColor="#071827"
+                            android:textSize="16sp"
+                            android:textStyle="bold" />
+
+                    </LinearLayout>
+
+                </LinearLayout>
 
             </LinearLayout>
+
+            <!-- CATÁLOGO ──────────────────────────────────────────── -->
+            <TextView
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:layout_marginTop="28dp"
+                android:text="Lotes del catálogo"
+                android:textColor="#071827"
+                android:textSize="22sp"
+                android:textStyle="bold" />
+
+            <TextView
+                android:id="@+id/txtMensajeDetalle"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:layout_marginTop="4dp"
+                android:text="Cargando catálogo..."
+                android:textColor="#6B7280"
+                android:textSize="13sp" />
 
             <LinearLayout
                 android:id="@+id/contenedorCatalogo"
@@ -173,16 +416,6 @@
                 android:layout_height="wrap_content"
                 android:layout_marginTop="16dp"
                 android:orientation="vertical" />
-
-            <Button
-                android:id="@+id/btnVolverHome"
-                android:layout_width="match_parent"
-                android:layout_height="50dp"
-                android:layout_marginTop="24dp"
-                android:background="@drawable/bg_button_outline"
-                android:text="VOLVER AL INICIO"
-                android:textColor="#071827"
-                android:textStyle="bold" />
 
         </LinearLayout>
 

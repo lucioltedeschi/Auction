@@ -24,7 +24,7 @@
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
             android:layout_marginTop="6dp"
-            android:text="Paso 1: cargÃ¡ tus datos y documentaciÃ³n. La empresa revisa la solicitud antes de habilitar la clave."
+            android:text="Paso 1: cargá tus datos y documentación. La empresa revisa la solicitud antes de habilitar la clave."
             android:textColor="#64748B"
             android:textSize="15sp" />
 
@@ -136,7 +136,7 @@
             android:layout_height="55dp"
             android:layout_marginTop="12dp"
             android:background="@drawable/bg_input_premium"
-            android:hint="TelÃ©fono"
+            android:hint="Teléfono"
             android:inputType="phone"
             android:padding="12dp" />
 
@@ -235,7 +235,7 @@
                 android:layout_width="match_parent"
                 android:layout_height="wrap_content"
                 android:layout_marginTop="6dp"
-                android:text="UsÃ¡ este bloque cuando la empresa ya aprobÃ³ tu solicitud y te asignÃ³ categorÃ­a."
+                android:text="Usá este bloque cuando la empresa ya aprobó tu solicitud y te asignó categoría."
                 android:textColor="#64748B"
                 android:textSize="14sp" />
 

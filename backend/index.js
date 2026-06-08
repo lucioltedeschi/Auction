@@ -121,6 +121,9 @@ async function obtenerEstadoVivo(pool, auctionId) {
         a.estado,
         a.categoria,
         a.moneda,
+        a.fecha        AS subastaFecha,
+        a.hora         AS subastaHora,
+        a.duracionItemMinutos,
         ci.identificador AS itemId,
         ci.precioBase,
         ci.comision,
@@ -129,7 +132,13 @@ async function obtenerEstadoVivo(pool, auctionId) {
         p.descripcionCatalogo,
         p.descripcionCompleta,
         ISNULL(MAX(b.importe), 0) AS mayorOferta,
-        DATEDIFF(SECOND, GETDATE(), DATEADD(MINUTE, 3, MAX(ISNULL(b.fechaHora, GETDATE())))) AS segundosRestantes
+        -- Base del timer: última puja si existe; si no, el horario programado de la subasta
+        DATEDIFF(SECOND, GETDATE(), DATEADD(MINUTE, a.duracionItemMinutos,
+          COALESCE(
+            MAX(b.fechaHora),
+            CAST(CONVERT(varchar(10), a.fecha, 23) + ' ' + CONVERT(varchar(8), a.hora, 108) AS DATETIME)
+          )
+        )) AS segundosRestantes
       FROM Auctions a
       INNER JOIN Catalogs c
         ON c.subasta = a.identificador
@@ -146,6 +155,9 @@ async function obtenerEstadoVivo(pool, auctionId) {
         a.estado,
         a.categoria,
         a.moneda,
+        a.fecha,
+        a.hora,
+        a.duracionItemMinutos,
         ci.identificador,
         ci.precioBase,
         ci.comision,
@@ -185,9 +197,150 @@ async function obtenerEstadoVivo(pool, auctionId) {
     pujaMinima: Number(limites.pujaMinima.toFixed(2)),
     pujaMaxima: limites.pujaMaxima === null ? null : Number(limites.pujaMaxima.toFixed(2)),
     segundosRestantes: Math.max(Number(estado.segundosRestantes || 0), 0),
+    duracionItemMinutos: estado.duracionItemMinutos,
     mecanismoTiempoReal: "SSE",
     eventosUrl: `/api/auctions/${auctionId}/events`,
   };
+}
+
+// Auto-closes an item when the countdown reaches zero.
+// Marks it sold and flags the winning bid (if any). Sale record creation is attempted
+// but the item is always marked closed regardless of payment-method availability.
+async function cerrarItemAutomatico(pool, itemId, auctionId) {
+  // Guard: skip if already closed
+  const check = await pool
+    .request()
+    .input("itemId", sql.Int, itemId)
+    .query("SELECT vendido FROM CatalogItems WHERE identificador = @itemId");
+  if (!check.recordset.length || check.recordset[0].vendido === "si") return;
+
+  // Get top bid
+  const winnerResult = await pool
+    .request()
+    .input("itemId", sql.Int, itemId)
+    .query(`
+      SELECT TOP 1
+        b.identificador AS bidId,
+        b.importe,
+        at.cliente
+      FROM Bids b
+      INNER JOIN Attendees at ON b.asistente = at.identificador
+      WHERE b.item = @itemId
+      ORDER BY b.importe DESC, b.fechaHora ASC
+    `);
+
+  // Mark item as closed
+  await pool
+    .request()
+    .input("itemId", sql.Int, itemId)
+    .query("UPDATE CatalogItems SET subastado = 'si', vendido = 'si' WHERE identificador = @itemId");
+
+  // Check if auction has any remaining unsold items — if not, close the auction
+  const restantesResult = await pool
+    .request()
+    .input("auctionId", sql.Int, auctionId)
+    .query(`
+      SELECT COUNT(*) AS pendientes
+      FROM CatalogItems ci
+      INNER JOIN Catalogs c ON ci.catalogo = c.identificador
+      WHERE c.subasta = @auctionId AND ci.vendido = 'no'
+    `);
+  if (restantesResult.recordset[0].pendientes === 0) {
+    await pool
+      .request()
+      .input("auctionId", sql.Int, auctionId)
+      .query("UPDATE Auctions SET estado = 'cerrada' WHERE identificador = @auctionId AND estado != 'cerrada'");
+    console.log(`[AUTO-CLOSE] Subasta ${auctionId} marcada como CERRADA — sin items pendientes.`);
+  }
+
+  if (winnerResult.recordset.length === 0) {
+    console.log(`[AUTO-CLOSE] Item ${itemId} cerrado sin pujas.`);
+    return;
+  }
+
+  const ganador = winnerResult.recordset[0];
+
+  // Mark winning bid
+  await pool
+    .request()
+    .input("itemId", sql.Int, itemId)
+    .query("UPDATE Bids SET ganador = 'no' WHERE item = @itemId");
+  await pool
+    .request()
+    .input("bidId", sql.Int, ganador.bidId)
+    .query("UPDATE Bids SET ganador = 'si' WHERE identificador = @bidId");
+
+  console.log(`[AUTO-CLOSE] Item ${itemId} vendido. Ganador clienteId=${ganador.cliente} importe=${ganador.importe}`);
+
+  // Try to create the AuctionRecord (best-effort; item already marked closed above)
+  try {
+    const itemData = await pool
+      .request()
+      .input("itemId", sql.Int, itemId)
+      .query(`
+        SELECT ci.precioBase, ci.comision, c.subasta AS subastaId, p.duenio, ci.producto AS productoId, a.moneda
+        FROM CatalogItems ci
+        INNER JOIN Catalogs c ON ci.catalogo = c.identificador
+        INNER JOIN Auctions a ON c.subasta = a.identificador
+        INNER JOIN Products p ON p.identificador = ci.producto
+        WHERE ci.identificador = @itemId
+      `);
+    if (!itemData.recordset.length) return;
+    const item = itemData.recordset[0];
+
+    const medioResult = await pool
+      .request()
+      .input("cliente", sql.Int, ganador.cliente)
+      .input("moneda", sql.VarChar, item.moneda)
+      .query(`
+        SELECT TOP 1 identificador FROM PaymentMethods
+        WHERE cliente = @cliente AND verificado = 'si' AND moneda = @moneda
+          AND (@moneda = 'pesos' OR tipo = 'cuenta_bancaria'
+               OR (tipo = 'tarjeta_credito' AND esExtranjera = 'si')
+               OR tipo = 'cheque_certificado')
+        ORDER BY identificador
+      `);
+    const medioPagoId = medioResult.recordset.length > 0
+      ? medioResult.recordset[0].identificador
+      : null;
+
+    // comision must be > 0.01 per DB constraint
+    const comisionVal = Math.max(Number(item.comision) || 0, 0.02);
+
+    await pool
+      .request()
+      .input("subasta", sql.Int, item.subastaId)
+      .input("duenio", sql.Int, item.duenio)
+      .input("producto", sql.Int, item.productoId)
+      .input("cliente", sql.Int, ganador.cliente)
+      .input("medioPago", sql.Int, medioPagoId)
+      .input("importe", sql.Decimal(18, 2), Number(ganador.importe))
+      .input("comision", sql.Decimal(18, 2), comisionVal)
+      .query(`
+        INSERT INTO AuctionRecords
+          (subasta, duenio, producto, cliente, medioPago, importe, comision, costoEnvio, estadoPago, retiroPersonal)
+        VALUES
+          (@subasta, @duenio, @producto, @cliente, @medioPago, @importe, @comision, 0, 'pendiente', 'no')
+      `);
+
+    await pool
+      .request()
+      .input("producto", sql.Int, item.productoId)
+      .input("nuevoDuenio", sql.Int, ganador.cliente)
+      .query("UPDATE Products SET duenio = @nuevoDuenio, disponible = 'no' WHERE identificador = @producto");
+
+    await pool
+      .request()
+      .input("cliente", sql.Int, ganador.cliente)
+      .input("titulo", sql.VarChar, "Compra adjudicada")
+      .input("mensaje", sql.VarChar, "Ganaste una subasta. Tenés una compra pendiente de pago. Revisá Compras y Pagos.")
+      .query(`INSERT INTO Notifications (cliente, titulo, mensaje, leida) VALUES (@cliente, @titulo, @mensaje, 'no')`);
+
+    console.log(`[AUTO-CLOSE] ✅ AuctionRecord creado — item=${itemId} cliente=${ganador.cliente} importe=${ganador.importe} medioPago=${medioPagoId ?? "null"}`);
+  } catch (e) {
+    console.error(`[AUTO-CLOSE] ❌ Error al crear AuctionRecord para item ${itemId}:`, e.message);
+    console.error(`[AUTO-CLOSE]    detalle:`, e);
+  }
 }
 
 function categoriaValida(categoria) {
@@ -626,6 +779,30 @@ app.get("/api/users/:userId", async (req, res) => {
   }
 });
 
+app.patch("/api/users/:userId", async (req, res) => {
+  try {
+    const pool = await poolPromise;
+    const { telefono, direccion, email } = req.body;
+
+    if (!telefono && !direccion && !email) {
+      return res.status(400).json({ error: "No se proporcionaron campos a actualizar" });
+    }
+
+    let sets = [];
+    const request = pool.request().input("userId", sql.Int, req.params.userId);
+
+    if (telefono !== undefined) { sets.push("telefono = @telefono"); request.input("telefono", sql.NVarChar, telefono); }
+    if (direccion !== undefined) { sets.push("direccion = @direccion"); request.input("direccion", sql.NVarChar, direccion); }
+    if (email !== undefined)    { sets.push("email = @email");    request.input("email",    sql.NVarChar, email); }
+
+    await request.query(`UPDATE Users SET ${sets.join(", ")} WHERE identificador = @userId`);
+
+    res.status(200).json({ mensaje: "Perfil actualizado correctamente" });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
 /* ============================================================
    SUBASTAS
    ============================================================ */
@@ -753,6 +930,88 @@ app.get("/api/clients/:clientId/auctions", async (req, res) => {
   }
 });
 
+/* ── GET auction history for a client (subastas donde participó) ─────── */
+app.get("/api/clients/:clientId/history", async (req, res) => {
+  try {
+    const clientId = Number(req.params.clientId);
+    const pool = await poolPromise;
+
+    const result = await pool
+      .request()
+      .input("clientId", sql.Int, clientId)
+      .query(`
+        SELECT DISTINCT
+          a.identificador  AS id,
+          a.fecha,
+          a.hora,
+          a.estado,
+          a.ubicacion,
+          a.categoria,
+          a.moneda,
+          (
+            SELECT COUNT(*) FROM Bids b2
+            INNER JOIN Attendees at2 ON b2.asistente = at2.identificador
+            INNER JOIN CatalogItems ci2 ON b2.item = ci2.identificador
+            INNER JOIN Catalogs c2 ON ci2.catalogo = c2.identificador
+            WHERE c2.subasta = a.identificador AND at2.cliente = @clientId
+          ) AS totalPujas,
+          (
+            SELECT COUNT(*) FROM AuctionRecords ar
+            WHERE ar.subasta = a.identificador AND ar.cliente = @clientId
+          ) AS itemsGanados
+        FROM Bids b
+        INNER JOIN Attendees at ON b.asistente = at.identificador
+        INNER JOIN CatalogItems ci ON b.item = ci.identificador
+        INNER JOIN Catalogs c ON ci.catalogo = c.identificador
+        INNER JOIN Auctions a ON c.subasta = a.identificador
+        WHERE at.cliente = @clientId
+        ORDER BY a.fecha DESC, a.hora DESC
+      `);
+
+    res.status(200).json(result.recordset);
+  } catch (err) {
+    console.error("[GET history]", err.message);
+    res.status(500).json({ error: err.message });
+  }
+});
+
+/* ── GET purchases for a client ────────────────────────────────────────── */
+app.get("/api/clients/:clientId/purchases", async (req, res) => {
+  try {
+    const clientId = Number(req.params.clientId);
+    const pool = await poolPromise;
+
+    const result = await pool
+      .request()
+      .input("clientId", sql.Int, clientId)
+      .query(`
+        SELECT
+          ar.identificador                          AS ventaId,
+          ar.estadoPago,
+          ar.importe,
+          ar.comision,
+          ISNULL(ar.costoEnvio, 0)                  AS costoEnvio,
+          ar.fechaVenta,
+          DATEADD(DAY, 7, ar.fechaVenta)            AS fechaLimitePago,
+          ar.retiroPersonal,
+          p.descripcionCatalogo,
+          a.identificador                           AS subastaId,
+          a.ubicacion,
+          a.moneda
+        FROM AuctionRecords ar
+        INNER JOIN Products  p  ON ar.producto = p.identificador
+        INNER JOIN Auctions  a  ON ar.subasta  = a.identificador
+        WHERE ar.cliente = @clientId
+        ORDER BY ar.fechaVenta DESC
+      `);
+
+    res.status(200).json(result.recordset);
+  } catch (err) {
+    console.error("[GET purchases]", err.message);
+    res.status(500).json({ error: err.message });
+  }
+});
+
 app.get("/api/auctions/:auctionId", async (req, res) => {
   try {
     const pool = await poolPromise;
@@ -795,6 +1054,33 @@ app.get("/api/auctions/:auctionId", async (req, res) => {
   }
 });
 
+// PATCH /api/admin/auctions/:auctionId/duracion  — change per-item timer duration
+app.patch("/api/admin/auctions/:auctionId/duracion", requireEmployee, async (req, res) => {
+  try {
+    const { minutos } = req.body;
+    const mins = parseInt(minutos, 10);
+    if (!mins || mins < 1 || mins > 60) {
+      return res.status(400).json({ error: "minutos debe ser un entero entre 1 y 60" });
+    }
+    const pool = await poolPromise;
+    const result = await pool
+      .request()
+      .input("auctionId", sql.Int, req.params.auctionId)
+      .input("minutos", sql.Int, mins)
+      .query(`
+        UPDATE Auctions
+           SET duracionItemMinutos = @minutos
+         WHERE identificador = @auctionId
+      `);
+    if (result.rowsAffected[0] === 0) {
+      return res.status(404).json({ error: "Subasta no encontrada" });
+    }
+    res.json({ ok: true, duracionItemMinutos: mins });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
 app.get("/api/auctions/:auctionId/live-state", async (req, res) => {
   try {
     const pool = await poolPromise;
@@ -827,10 +1113,41 @@ app.get("/api/auctions/:auctionId/events", async (req, res) => {
 
     try {
       const pool = await poolPromise;
-      const estado = await obtenerEstadoVivo(pool, req.params.auctionId);
 
-      res.write("event: live-state\n");
-      res.write(`data: ${JSON.stringify(estado || { error: "Sin item activo" })}\n\n`);
+      // Auto-start: if auction is 'programada' and its scheduled time has passed → en_curso
+      await pool
+        .request()
+        .input("auctionId", sql.Int, req.params.auctionId)
+        .query(`
+          UPDATE Auctions
+          SET estado = 'en_curso'
+          WHERE identificador = @auctionId
+            AND estado = 'programada'
+            AND CAST(CONVERT(varchar(10), fecha, 23) + ' ' + CONVERT(varchar(8), hora, 108) AS DATETIME) <= GETDATE()
+        `);
+
+      let estado = await obtenerEstadoVivo(pool, req.params.auctionId);
+
+      // Auto-close the item if its timer has expired
+      if (estado && estado.segundosRestantes <= 0) {
+        await cerrarItemAutomatico(pool, estado.itemActual.itemId, req.params.auctionId);
+        // Re-fetch so the SSE sends the next unsold item (or null if auction is over)
+        estado = await obtenerEstadoVivo(pool, req.params.auctionId);
+      }
+
+      if (!estado) {
+        // No more items — check actual auction state
+        const auctionCheck = await pool
+          .request()
+          .input("auctionId", sql.Int, req.params.auctionId)
+          .query("SELECT estado FROM Auctions WHERE identificador = @auctionId");
+        const estadoSubasta = auctionCheck.recordset[0]?.estado || "cerrada";
+        res.write("event: live-state\n");
+        res.write(`data: ${JSON.stringify({ finalizada: true, estado: estadoSubasta, subastaId: Number(req.params.auctionId) })}\n\n`);
+      } else {
+        res.write("event: live-state\n");
+        res.write(`data: ${JSON.stringify(estado)}\n\n`);
+      }
     } catch (err) {
       res.write("event: error\n");
       res.write(`data: ${JSON.stringify({ error: err.message })}\n\n`);
@@ -1409,6 +1726,73 @@ app.post("/api/clients/:clientId/payment-methods", async (req, res) => {
   }
 });
 
+app.patch("/api/clients/:clientId/payment-methods/:paymentMethodId", async (req, res) => {
+  try {
+    const { entidad, numeroReferencia, esExtranjera, moneda, montoCheque } = req.body;
+    const monedasValidas = ["pesos", "dolares"];
+    const monedaNormalizada = monedasValidas.includes(moneda) ? moneda : "pesos";
+    const esExtranjeraNormalizado = normalizarSiNo(esExtranjera);
+
+    if (!entidad || !numeroReferencia) {
+      return res.status(400).json({ error: "Debe enviar entidad y referencia" });
+    }
+
+    const pool = await poolPromise;
+
+    const check = await pool
+      .request()
+      .input("id", sql.Int, req.params.paymentMethodId)
+      .input("clientId", sql.Int, req.params.clientId)
+      .query("SELECT identificador, tipo FROM PaymentMethods WHERE identificador = @id AND cliente = @clientId");
+
+    if (check.recordset.length === 0) {
+      return res.status(404).json({ error: "Medio de pago no encontrado" });
+    }
+
+    const tipo = check.recordset[0].tipo;
+    const montoChequeNumerico =
+      tipo === "cheque_certificado" && montoCheque ? Number(montoCheque) : null;
+
+    const result = await pool
+      .request()
+      .input("id", sql.Int, req.params.paymentMethodId)
+      .input("entidad", sql.VarChar, entidad)
+      .input("numeroReferencia", sql.VarChar, numeroReferencia)
+      .input("esExtranjera", sql.VarChar, esExtranjeraNormalizado)
+      .input("moneda", sql.VarChar, monedaNormalizada)
+      .input("montoCheque", sql.Decimal(18, 2), montoChequeNumerico)
+      .query(`
+        UPDATE PaymentMethods
+        SET
+          entidad = @entidad,
+          numeroReferencia = @numeroReferencia,
+          esExtranjera = @esExtranjera,
+          moneda = @moneda,
+          verificado = 'no',
+          montoCheque = ISNULL(@montoCheque, montoCheque),
+          montoDisponible = ISNULL(@montoCheque, montoDisponible)
+        OUTPUT
+          INSERTED.identificador AS id,
+          INSERTED.tipo,
+          INSERTED.entidad,
+          INSERTED.numeroReferencia,
+          INSERTED.esExtranjera,
+          INSERTED.moneda,
+          INSERTED.verificado,
+          INSERTED.montoCheque,
+          INSERTED.montoDisponible
+        WHERE identificador = @id
+      `);
+
+    res.status(200).json({
+      mensaje: "Medio de pago actualizado. Queda pendiente de verificacion nuevamente.",
+      medioPago: result.recordset[0],
+    });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
 app.get("/api/admin/payment-methods/pending", requireEmployee, async (req, res) => {
   try {
     const pool = await poolPromise;
@@ -1504,6 +1888,7 @@ app.post("/api/products", async (req, res) => {
       fotos,
       declaracionPropiedad,
       origenLicito,
+      subastaId,        // opcional: subasta preferida elegida por el consignante
     } = req.body;
 
     if (!duenio || !descripcionCompleta || declaracionPropiedad !== "si") {
@@ -1560,6 +1945,7 @@ app.post("/api/products", async (req, res) => {
       .input("fechaObjeto", sql.Date, fechaObjeto || null)
       .input("declaracionPropiedad", sql.VarChar, declaracionPropiedad)
       .input("origenLicito", sql.VarChar, origenLicito || "si")
+      .input("subastaPreferida", sql.Int, subastaId ? Number(subastaId) : null)
       .query(`
         INSERT INTO Products (
           fecha,
@@ -1572,9 +1958,10 @@ app.post("/api/products", async (req, res) => {
           declaracionPropiedad,
           origenLicito,
           estadoAprobacion,
-          duenio
+          duenio,
+          subastaPreferida
         )
-        OUTPUT INSERTED.identificador, INSERTED.estadoAprobacion
+        OUTPUT INSERTED.identificador, INSERTED.estadoAprobacion, INSERTED.subastaPreferida
         VALUES (
           CAST(GETDATE() AS DATE),
           'no',
@@ -1586,7 +1973,8 @@ app.post("/api/products", async (req, res) => {
           @declaracionPropiedad,
           @origenLicito,
           'pendiente',
-          @duenio
+          @duenio,
+          @subastaPreferida
         )
       `);
 
@@ -1674,12 +2062,19 @@ app.get("/api/admin/products/pending", requireEmployee, async (req, res) => {
         p.duenio,
         u.nombre + ' ' + u.apellido AS duenioNombre,
         p.fechaAlta,
+        p.subastaPreferida,
+        a.ubicacion    AS subastaUbicacion,
+        a.fecha        AS subastaFecha,
+        a.hora         AS subastaHora,
+        a.estado       AS subastaEstado,
         COUNT(ph.identificador) AS fotos
       FROM Products p
       INNER JOIN Users u
         ON p.duenio = u.identificador
       LEFT JOIN Photos ph
         ON ph.producto = p.identificador
+      LEFT JOIN Auctions a
+        ON a.identificador = p.subastaPreferida
       WHERE p.estadoAprobacion = 'pendiente'
       GROUP BY
         p.identificador,
@@ -1689,7 +2084,12 @@ app.get("/api/admin/products/pending", requireEmployee, async (req, res) => {
         p.duenio,
         u.nombre,
         u.apellido,
-        p.fechaAlta
+        p.fechaAlta,
+        p.subastaPreferida,
+        a.ubicacion,
+        a.fecha,
+        a.hora,
+        a.estado
       ORDER BY p.fechaAlta DESC
     `);
 
@@ -2084,6 +2484,63 @@ app.post("/api/admin/auctions/:auctionId/items/:itemId/close", requireEmployee, 
     res.status(500).json({
       error: err.message,
     });
+  }
+});
+
+/* ============================================================
+   COMPRAS Y PAGOS
+   ============================================================ */
+
+app.get("/api/clients/:clientId/purchases", async (req, res) => {
+  try {
+    const pool = await poolPromise;
+    const result = await pool
+      .request()
+      .input("clientId", sql.Int, req.params.clientId)
+      .query(`
+        SELECT
+          ar.identificador AS ventaId,
+          ar.importe,
+          ar.comision,
+          ISNULL(ar.costoEnvio, 0) AS costoEnvio,
+          ar.estadoPago,
+          ar.fechaVenta,
+          DATEADD(DAY, 7, ar.fechaVenta) AS fechaLimitePago,
+          ISNULL(ar.retiroPersonal, 'no') AS retiroPersonal,
+          p.descripcionCatalogo,
+          a.identificador AS subastaId
+        FROM AuctionRecords ar
+        INNER JOIN Products p ON ar.producto = p.identificador
+        INNER JOIN Auctions a ON ar.subasta = a.identificador
+        WHERE ar.cliente = @clientId
+        ORDER BY ar.fechaVenta DESC
+      `);
+    res.status(200).json(result.recordset);
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+app.post("/api/purchases/:ventaId/pay", async (req, res) => {
+  try {
+    const pool = await poolPromise;
+    const check = await pool
+      .request()
+      .input("ventaId", sql.Int, req.params.ventaId)
+      .query("SELECT identificador, estadoPago FROM AuctionRecords WHERE identificador = @ventaId");
+    if (!check.recordset.length)
+      return res.status(404).json({ error: "Compra no encontrada" });
+    if (check.recordset[0].estadoPago === "pagado")
+      return res.status(409).json({ error: "La compra ya fue pagada" });
+
+    await pool
+      .request()
+      .input("ventaId", sql.Int, req.params.ventaId)
+      .query("UPDATE AuctionRecords SET estadoPago = 'pagado' WHERE identificador = @ventaId");
+
+    res.status(200).json({ mensaje: "Pago registrado correctamente" });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
   }
 });
 

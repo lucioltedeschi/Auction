@@ -1,111 +1,109 @@
-<ScrollView xmlns:android="http://schemas.android.com/apk/res/android"
-    xmlns:app="http://schemas.android.com/apk/res-auto"
+<?xml version="1.0" encoding="utf-8"?>
+<LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
     android:layout_width="match_parent"
     android:layout_height="match_parent"
-    android:background="#F8F8F8">
+    android:background="#F3F0E8"
+    android:fitsSystemWindows="true"
+    android:orientation="vertical">
 
+    <!-- STICKY TOP BAR (light) -->
     <LinearLayout
         android:layout_width="match_parent"
         android:layout_height="wrap_content"
-        android:orientation="vertical"
-        android:padding="20dp">
+        android:background="#F3F0E8"
+        android:elevation="4dp"
+        android:gravity="center_vertical"
+        android:orientation="horizontal"
+        android:paddingLeft="18dp"
+        android:paddingTop="14dp"
+        android:paddingRight="18dp"
+        android:paddingBottom="14dp">
+
+        <LinearLayout
+            android:layout_width="0dp"
+            android:layout_height="wrap_content"
+            android:layout_weight="1"
+            android:orientation="vertical">
+
+            <TextView
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:letterSpacing="0.10"
+                android:text="AUCT.IO"
+                android:textColor="#071827"
+                android:textSize="20sp"
+                android:textStyle="bold" />
+
+            <TextView
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:layout_marginTop="1dp"
+                android:letterSpacing="0.12"
+                android:text="CATÁLOGO DE SUBASTAS"
+                android:textColor="#A8872F"
+                android:textSize="10sp"
+                android:textStyle="bold" />
+
+        </LinearLayout>
 
         <TextView
             android:layout_width="wrap_content"
-            android:layout_height="wrap_content"
-            android:text="Live Catalog"
-            android:textSize="26sp"
-            android:textStyle="bold"
-            android:textColor="#001220" />
-
-        <EditText
-            android:layout_width="match_parent"
-            android:layout_height="50dp"
-            android:hint="Search by artist, era..."
-            android:layout_marginTop="16dp"
-            android:layout_marginBottom="24dp"
-            android:paddingStart="15dp"
-            android:background="@android:drawable/editbox_background"/>
-
-        <androidx.cardview.widget.CardView
-            android:layout_width="match_parent"
-            android:layout_height="wrap_content"
-            android:layout_marginBottom="24dp"
-            app:cardElevation="2dp">
-
-            <LinearLayout
-                android:layout_width="match_parent"
-                android:layout_height="wrap_content"
-                android:orientation="vertical"
-                android:padding="16dp">
-
-                <TextView
-                    android:layout_width="wrap_content"
-                    android:layout_height="wrap_content"
-                    android:text="The Chronos Legacy 1964"
-                    android:textSize="18sp"
-                    android:textStyle="bold"
-                    android:textColor="#001220" />
-
-                <TextView
-                    android:layout_width="wrap_content"
-                    android:layout_height="wrap_content"
-                    android:text="$42,500"
-                    android:textSize="20sp"
-                    android:textStyle="bold"
-                    android:textColor="#001220"
-                    android:layout_marginTop="8dp"/>
-
-                <Button
-                    android:layout_width="match_parent"
-                    android:layout_height="50dp"
-                    android:text="PUJAR"
-                    android:backgroundTint="#C5A059"
-                    android:textColor="#001220"
-                    android:textStyle="bold"
-                    android:layout_marginTop="16dp" />
-            </LinearLayout>
-        </androidx.cardview.widget.CardView>
-
-        <androidx.cardview.widget.CardView
-            android:layout_width="match_parent"
-            android:layout_height="wrap_content"
-            android:layout_marginBottom="24dp"
-            app:cardElevation="2dp">
-
-            <LinearLayout
-                android:layout_width="match_parent"
-                android:layout_height="wrap_content"
-                android:orientation="vertical"
-                android:padding="16dp">
-
-                <TextView
-                    android:layout_width="wrap_content"
-                    android:layout_height="wrap_content"
-                    android:text="Ethereal Motion No. 7"
-                    android:textSize="18sp"
-                    android:textStyle="bold"
-                    android:textColor="#001220" />
-
-                <TextView
-                    android:layout_width="wrap_content"
-                    android:layout_height="wrap_content"
-                    android:text="$18,200"
-                    android:textSize="20sp"
-                    android:textStyle="bold"
-                    android:textColor="#001220"
-                    android:layout_marginTop="8dp"/>
-
-                <Button
-                    android:layout_width="match_parent"
-                    android:layout_height="50dp"
-                    android:text="VER DETALLE"
-                    android:backgroundTint="#001220"
-                    android:textColor="#FFFFFF"
-                    android:textStyle="bold"
-                    android:layout_marginTop="16dp" />
-            </LinearLayout>
-        </androidx.cardview.widget.CardView>
+            android:layout_height="30dp"
+            android:background="@drawable/bg_live_chip"
+            android:gravity="center"
+            android:paddingLeft="12dp"
+            android:paddingRight="12dp"
+            android:text="● LIVE"
+            android:textColor="#166534"
+            android:textSize="10sp"
+            android:textStyle="bold" />
 
     </LinearLayout>
-</ScrollView>
+
+    <ScrollView
+        android:id="@+id/scrollSubastas"
+        android:layout_width="match_parent"
+        android:layout_height="0dp"
+        android:layout_weight="1"
+        android:fillViewport="true">
+
+        <LinearLayout
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:orientation="vertical"
+            android:paddingLeft="18dp"
+            android:paddingRight="18dp"
+            android:paddingBottom="28dp">
+
+            <TextView
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:layout_marginTop="4dp"
+                android:text="Subastas disponibles"
+                android:textColor="#071827"
+                android:textSize="22sp"
+                android:textStyle="bold" />
+
+            <TextView
+                android:id="@+id/txtMensajeSubastas"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:layout_marginTop="4dp"
+                android:text="Cargando subastas..."
+                android:textColor="#6B7280"
+                android:textSize="13sp" />
+
+            <LinearLayout
+                android:id="@+id/contenedorSubastas"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:layout_marginTop="14dp"
+                android:orientation="vertical" />
+
+        </LinearLayout>
+
+    </ScrollView>
+
+    <include layout="@layout/component_bottom_nav" />
+
+</LinearLayout>

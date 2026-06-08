@@ -1,5 +1,6 @@
 package com.example.clase4;
 
+import android.app.AlertDialog;
 import android.os.Bundle;
 import android.os.Handler;
 import android.os.Looper;
@@ -10,11 +11,13 @@ import android.graphics.BitmapFactory;
 import android.graphics.Color;
 import android.util.Base64;
 import android.view.View;
+import android.view.ViewGroup;
 import android.widget.ArrayAdapter;
 import android.widget.Button;
 import android.widget.EditText;
 import android.widget.ImageView;
 import android.widget.LinearLayout;
+import android.widget.ScrollView;
 import android.widget.Spinner;
 import android.widget.TextView;
 
@@ -97,16 +100,13 @@ public class AdminActivity extends AppCompatActivity {
                 new String[]{"comun", "especial", "plata", "oro", "platino"}
         ));
 
-        findViewById(R.id.btnAdminAprobarUsuario).setOnClickListener(v -> verificarUsuario("si"));
-        findViewById(R.id.btnAdminRechazarUsuario).setOnClickListener(v -> verificarUsuario("no"));
         findViewById(R.id.btnAdminActualizarPendientes).setOnClickListener(v -> cargarPendientes());
-        findViewById(R.id.btnAdminVerificarMedio).setOnClickListener(v -> verificarMedioPago());
-        findViewById(R.id.btnAdminRechazarMedio).setOnClickListener(v -> rechazarMedioPago());
-        findViewById(R.id.btnAdminAceptarProducto).setOnClickListener(v -> revisarProducto("aceptado"));
-        findViewById(R.id.btnAdminRechazarProducto).setOnClickListener(v -> revisarProducto("rechazado"));
-        findViewById(R.id.btnAdminAsignarProducto).setOnClickListener(v -> asignarProducto());
-        findViewById(R.id.btnAdminCerrarItem).setOnClickListener(v -> cerrarItem());
-        findViewById(R.id.btnAdminCrearMulta).setOnClickListener(v -> crearMulta());
+        findViewById(R.id.cardAdminVerificarUsuario).setOnClickListener(v -> mostrarDialogVerificarUsuario());
+        findViewById(R.id.cardAdminMediosPago).setOnClickListener(v -> mostrarDialogMediosPago());
+        findViewById(R.id.cardAdminConsignaciones).setOnClickListener(v -> mostrarDialogConsignaciones());
+        findViewById(R.id.cardAdminCatalogo).setOnClickListener(v -> mostrarDialogCatalogo());
+        findViewById(R.id.cardAdminCerrarItem).setOnClickListener(v -> mostrarDialogCerrarItem());
+        findViewById(R.id.cardAdminMultas).setOnClickListener(v -> mostrarDialogMultas());
         findViewById(R.id.btnVolverAdmin).setOnClickListener(v -> cerrarSesionAdmin());
 
         cargarPendientes();
@@ -573,6 +573,417 @@ public class AdminActivity extends AppCompatActivity {
         });
     }
 
+    private LinearLayout buildDialogContainer() {
+        LinearLayout container = new LinearLayout(this);
+        container.setOrientation(LinearLayout.VERTICAL);
+        container.setPadding(dp(20), dp(8), dp(20), dp(8));
+        return container;
+    }
+
+    private EditText buildInput(String hint, int inputType) {
+        EditText edt = new EditText(this);
+        edt.setHint(hint);
+        edt.setInputType(inputType);
+        edt.setBackgroundResource(R.drawable.bg_input_premium);
+        edt.setPadding(dp(14), dp(12), dp(14), dp(12));
+        LinearLayout.LayoutParams params = new LinearLayout.LayoutParams(
+                ViewGroup.LayoutParams.MATCH_PARENT, dp(52));
+        params.setMargins(0, dp(10), 0, 0);
+        edt.setLayoutParams(params);
+        return edt;
+    }
+
+    private TextView buildLabel(String text) {
+        TextView tv = new TextView(this);
+        tv.setText(text);
+        tv.setTextColor(Color.parseColor("#A8872F"));
+        tv.setTextSize(11);
+        tv.setTypeface(null, android.graphics.Typeface.BOLD);
+        tv.setLetterSpacing(0.08f);
+        LinearLayout.LayoutParams p = new LinearLayout.LayoutParams(
+                ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT);
+        p.setMargins(0, dp(14), 0, 0);
+        tv.setLayoutParams(p);
+        return tv;
+    }
+
+    private void mostrarDialogVerificarUsuario() {
+        LinearLayout container = buildDialogContainer();
+
+        // Cards de usuarios pendientes clicables
+        if (contenedorUsuariosPendientes.getChildCount() > 0) {
+            container.addView(buildLabel("USUARIOS PENDIENTES — tocá uno para preseleccionar"));
+        }
+
+        final int[] selectedUserId = {0};
+        final TextView selectedInfo = new TextView(this);
+        selectedInfo.setTextColor(Color.parseColor("#334155"));
+        selectedInfo.setTextSize(13);
+        selectedInfo.setVisibility(View.GONE);
+        selectedInfo.setBackgroundResource(R.drawable.bg_metric_box);
+        selectedInfo.setPadding(dp(12), dp(10), dp(12), dp(10));
+        LinearLayout.LayoutParams siParams = new LinearLayout.LayoutParams(
+                ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT);
+        siParams.setMargins(0, dp(8), 0, 0);
+        selectedInfo.setLayoutParams(siParams);
+
+        container.addView(buildLabel("ID DE USUARIO"));
+        EditText edtId = buildInput("ID de usuario", android.text.InputType.TYPE_CLASS_NUMBER);
+        container.addView(edtId);
+        container.addView(selectedInfo);
+
+        container.addView(buildLabel("CATEGORÍA A ASIGNAR"));
+        Spinner spCat = new Spinner(this);
+        spCat.setAdapter(new ArrayAdapter<>(this,
+                android.R.layout.simple_spinner_dropdown_item,
+                new String[]{"comun", "especial", "plata", "oro", "platino"}));
+        LinearLayout.LayoutParams spParams = new LinearLayout.LayoutParams(
+                ViewGroup.LayoutParams.MATCH_PARENT, dp(52));
+        spParams.setMargins(0, dp(8), 0, 0);
+        spCat.setLayoutParams(spParams);
+        container.addView(spCat);
+
+        ScrollView scrollView = new ScrollView(this);
+        scrollView.addView(container);
+
+        AlertDialog dialog = new AlertDialog.Builder(this)
+                .setTitle("Verificar usuario")
+                .setView(scrollView)
+                .setPositiveButton("APROBAR", null)
+                .setNegativeButton("RECHAZAR", null)
+                .setNeutralButton("Cancelar", null)
+                .create();
+
+        dialog.setOnShowListener(d -> {
+            dialog.getButton(AlertDialog.BUTTON_POSITIVE).setOnClickListener(v -> {
+                String id = edtId.getText().toString().trim();
+                if (id.isEmpty()) { mostrarError("Ingresá el ID del usuario."); return; }
+                edtAdminUsuarioId.setText(id);
+                spAdminCategoria.setSelection(spCat.getSelectedItemPosition());
+                dialog.dismiss();
+                verificarUsuario("si");
+            });
+            dialog.getButton(AlertDialog.BUTTON_NEGATIVE).setOnClickListener(v -> {
+                String id = edtId.getText().toString().trim();
+                if (id.isEmpty()) { mostrarError("Ingresá el ID del usuario."); return; }
+                edtAdminUsuarioId.setText(id);
+                dialog.dismiss();
+                verificarUsuario("no");
+            });
+        });
+        dialog.show();
+    }
+
+    private void mostrarDialogMediosPago() {
+        LinearLayout container = buildDialogContainer();
+        container.addView(buildLabel("ID DE MEDIO DE PAGO"));
+        EditText edtId = buildInput("ID del medio de pago", android.text.InputType.TYPE_CLASS_NUMBER);
+        container.addView(edtId);
+
+        ScrollView scrollView = new ScrollView(this);
+        scrollView.addView(container);
+
+        AlertDialog dialog = new AlertDialog.Builder(this)
+                .setTitle("Verificar medio de pago")
+                .setView(scrollView)
+                .setPositiveButton("VERIFICAR", null)
+                .setNegativeButton("RECHAZAR", null)
+                .setNeutralButton("Cancelar", null)
+                .create();
+
+        dialog.setOnShowListener(d -> {
+            dialog.getButton(AlertDialog.BUTTON_POSITIVE).setOnClickListener(v -> {
+                String id = edtId.getText().toString().trim();
+                if (id.isEmpty()) { mostrarError("Ingresá el ID."); return; }
+                edtAdminMedioPagoId.setText(id);
+                dialog.dismiss();
+                verificarMedioPago();
+            });
+            dialog.getButton(AlertDialog.BUTTON_NEGATIVE).setOnClickListener(v -> {
+                String id = edtId.getText().toString().trim();
+                if (id.isEmpty()) { mostrarError("Ingresá el ID."); return; }
+                edtAdminMedioPagoId.setText(id);
+                dialog.dismiss();
+                rechazarMedioPago();
+            });
+        });
+        dialog.show();
+    }
+
+    private void mostrarDialogConsignaciones() {
+        // Load pending products list first, then show dialog
+        executor.execute(() -> {
+            try {
+                URL url = new URL(ApiConfig.BASE_URL + "/api/admin/products/pending");
+                HttpURLConnection c = (HttpURLConnection) url.openConnection();
+                c.setRequestMethod("GET");
+                c.setRequestProperty("Accept", "application/json");
+                c.setRequestProperty("Authorization", "Bearer " + token);
+                JSONArray pendientes = c.getResponseCode() == 200
+                        ? new JSONArray(leerRespuesta(c.getInputStream()))
+                        : new JSONArray();
+                c.disconnect();
+                mainHandler.post(() -> mostrarDialogConsignacionesConLista(pendientes));
+            } catch (Exception e) {
+                mainHandler.post(() -> mostrarDialogConsignacionesConLista(new JSONArray()));
+            }
+        });
+    }
+
+    private void mostrarDialogConsignacionesConLista(JSONArray pendientes) {
+        LinearLayout container = buildDialogContainer();
+
+        // ── Pending list ─────────────────────────────────────────────────
+        if (pendientes.length() > 0) {
+            container.addView(buildLabel("CONSIGNACIONES PENDIENTES"));
+            for (int i = 0; i < pendientes.length(); i++) {
+                try {
+                    JSONObject p = pendientes.getJSONObject(i);
+                    int pid = p.optInt("id", 0);
+                    String desc = p.optString("descripcionCatalogo", "-");
+                    String duenio = p.optString("duenioNombre", "-");
+                    int subPref = p.optInt("subastaPreferida", 0);
+                    String subUbic = p.optString("subastaUbicacion", "");
+
+                    String linea = "#" + pid + "  " + desc + "\n" +
+                            "Consignante: " + duenio +
+                            (subPref > 0 ? "\nSubasta preferida: #" + subPref + " – " + subUbic : "");
+
+                    android.widget.Button btnItem = new android.widget.Button(this);
+                    btnItem.setText(linea);
+                    btnItem.setTextSize(12);
+                    btnItem.setAllCaps(false);
+                    btnItem.setTextColor(android.graphics.Color.parseColor("#071827"));
+                    btnItem.setBackgroundResource(R.drawable.bg_card_premium);
+                    btnItem.setGravity(android.view.Gravity.START | android.view.Gravity.CENTER_VERTICAL);
+                    int pad = dp(12);
+                    btnItem.setPadding(pad, pad, pad, pad);
+                    LinearLayout.LayoutParams bp = new LinearLayout.LayoutParams(
+                            LinearLayout.LayoutParams.MATCH_PARENT, LinearLayout.LayoutParams.WRAP_CONTENT);
+                    bp.setMargins(0, 0, 0, dp(8));
+                    btnItem.setLayoutParams(bp);
+                    final int finalPid = pid;
+                    final int finalSubPref = subPref;
+                    btnItem.setOnClickListener(v -> {
+                        edtAdminProductoId.setText(String.valueOf(finalPid));
+                        // Pre-fill subasta if the product has a preferred one
+                        if (finalSubPref > 0) edtAdminSubastaId.setText(String.valueOf(finalSubPref));
+                    });
+                    container.addView(btnItem);
+                } catch (Exception ignored) {}
+            }
+        } else {
+            TextView none = new TextView(this);
+            none.setText("No hay consignaciones pendientes.");
+            none.setTextColor(android.graphics.Color.parseColor("#64748B"));
+            none.setTextSize(13);
+            container.addView(none);
+        }
+
+        container.addView(buildLabel("ID DE PRODUCTO"));
+        EditText edtId = buildInput("ID del producto", android.text.InputType.TYPE_CLASS_NUMBER);
+        // Pre-fill if edtAdminProductoId already has a value
+        String current = edtAdminProductoId.getText().toString().trim();
+        if (!current.isEmpty()) edtId.setText(current);
+        container.addView(edtId);
+        container.addView(buildLabel("MOTIVO DE RECHAZO (solo si rechazás)"));
+        EditText edtMotivo = buildInput("Motivo de rechazo, si aplica", android.text.InputType.TYPE_CLASS_TEXT);
+        container.addView(edtMotivo);
+
+        ScrollView scrollView = new ScrollView(this);
+        scrollView.addView(container);
+
+        AlertDialog dialog = new AlertDialog.Builder(this)
+                .setTitle("Revisar consignación")
+                .setView(scrollView)
+                .setPositiveButton("ACEPTAR", null)
+                .setNegativeButton("RECHAZAR", null)
+                .setNeutralButton("Cancelar", null)
+                .create();
+
+        dialog.setOnShowListener(d -> {
+            dialog.getButton(AlertDialog.BUTTON_POSITIVE).setOnClickListener(v -> {
+                String id = edtId.getText().toString().trim();
+                if (id.isEmpty()) { mostrarError("Ingresá el ID."); return; }
+                edtAdminProductoId.setText(id);
+                edtAdminMotivoRechazo.setText("");
+                dialog.dismiss();
+                revisarProducto("aceptado");
+            });
+            dialog.getButton(AlertDialog.BUTTON_NEGATIVE).setOnClickListener(v -> {
+                String id = edtId.getText().toString().trim();
+                if (id.isEmpty()) { mostrarError("Ingresá el ID."); return; }
+                edtAdminProductoId.setText(id);
+                edtAdminMotivoRechazo.setText(edtMotivo.getText().toString().trim());
+                dialog.dismiss();
+                revisarProducto("rechazado");
+            });
+        });
+        dialog.show();
+    }
+
+
+
+    private void mostrarDialogCatalogo() {
+        LinearLayout container = buildDialogContainer();
+        container.addView(buildLabel("ID DE SUBASTA"));
+        EditText edtSubasta = buildInput("ID de subasta", android.text.InputType.TYPE_CLASS_NUMBER);
+        container.addView(edtSubasta);
+        container.addView(buildLabel("ID DE PRODUCTO"));
+        EditText edtProducto = buildInput("ID de producto", android.text.InputType.TYPE_CLASS_NUMBER);
+        container.addView(edtProducto);
+        container.addView(buildLabel("PRECIO BASE"));
+        EditText edtPrecio = buildInput("Precio base definido por la empresa", android.text.InputType.TYPE_NUMBER_FLAG_DECIMAL | android.text.InputType.TYPE_CLASS_NUMBER);
+        container.addView(edtPrecio);
+        container.addView(buildLabel("COMISIÓN"));
+        EditText edtComision = buildInput("Comisión", android.text.InputType.TYPE_NUMBER_FLAG_DECIMAL | android.text.InputType.TYPE_CLASS_NUMBER);
+        container.addView(edtComision);
+        container.addView(buildLabel("DURACIÓN POR ITEM (minutos)"));
+        EditText edtDuracion = buildInput("Dejar vacío para no cambiar (default: 3)", android.text.InputType.TYPE_CLASS_NUMBER);
+        container.addView(edtDuracion);
+
+        ScrollView scrollView = new ScrollView(this);
+        scrollView.addView(container);
+
+        AlertDialog dialog = new AlertDialog.Builder(this)
+                .setTitle("Asignar producto a subasta")
+                .setView(scrollView)
+                .setPositiveButton("ASIGNAR", null)
+                .setNegativeButton("Cancelar", null)
+                .create();
+
+        dialog.setOnShowListener(d ->
+            dialog.getButton(AlertDialog.BUTTON_POSITIVE).setOnClickListener(v -> {
+                String subasta = edtSubasta.getText().toString().trim();
+                String producto = edtProducto.getText().toString().trim();
+                String precio = edtPrecio.getText().toString().trim();
+                String comision = edtComision.getText().toString().trim();
+                String duracion = edtDuracion.getText().toString().trim();
+                if (subasta.isEmpty() || producto.isEmpty() || precio.isEmpty() || comision.isEmpty()) {
+                    mostrarError("Completá todos los campos."); return;
+                }
+                edtAdminSubastaId.setText(subasta);
+                edtAdminProductoId.setText(producto);
+                edtAdminPrecioBase.setText(precio);
+                edtAdminComision.setText(comision);
+                dialog.dismiss();
+                // If duration was specified, update the auction timer first
+                if (!duracion.isEmpty()) {
+                    actualizarDuracionSubasta(Integer.parseInt(subasta), Integer.parseInt(duracion));
+                }
+                asignarProducto();
+            })
+        );
+        dialog.show();
+    }
+
+    private void actualizarDuracionSubasta(int subastaId, int minutos) {
+        executor.execute(() -> {
+            try {
+                URL url = new URL(ApiConfig.BASE_URL + "/api/admin/auctions/" + subastaId + "/duracion");
+                HttpURLConnection conn = (HttpURLConnection) url.openConnection();
+                conn.setRequestMethod("PATCH");
+                conn.setRequestProperty("Content-Type", "application/json");
+                conn.setRequestProperty("Authorization", "Bearer " + token);
+                conn.setDoOutput(true);
+
+                JSONObject body = new JSONObject();
+                body.put("minutos", minutos);
+                byte[] bytes = body.toString().getBytes(StandardCharsets.UTF_8);
+                conn.getOutputStream().write(bytes);
+
+                int status = conn.getResponseCode();
+                InputStream is = status >= 200 && status < 300 ? conn.getInputStream() : conn.getErrorStream();
+                String resp = leerRespuesta(is);
+                conn.disconnect();
+
+                if (status == 200) {
+                    mainHandler.post(() -> mostrarOk("Timer de subasta #" + subastaId + " → " + minutos + " min ✓"));
+                } else {
+                    JSONObject err = new JSONObject(resp);
+                    mainHandler.post(() -> mostrarError("No se pudo actualizar duración: " + err.optString("error")));
+                }
+            } catch (Exception e) {
+                mainHandler.post(() -> mostrarError("Error actualizando duración: " + e.getMessage()));
+            }
+        });
+    }
+
+    private void mostrarDialogCerrarItem() {
+        LinearLayout container = buildDialogContainer();
+        container.addView(buildLabel("ID DE SUBASTA"));
+        EditText edtSubasta = buildInput("ID de subasta", android.text.InputType.TYPE_CLASS_NUMBER);
+        container.addView(edtSubasta);
+        container.addView(buildLabel("ID DE ITEM / LOTE"));
+        EditText edtItem = buildInput("ID de item o lote", android.text.InputType.TYPE_CLASS_NUMBER);
+        container.addView(edtItem);
+
+        ScrollView scrollView = new ScrollView(this);
+        scrollView.addView(container);
+
+        AlertDialog dialog = new AlertDialog.Builder(this)
+                .setTitle("Cerrar lote y generar venta")
+                .setView(scrollView)
+                .setPositiveButton("CERRAR LOTE", null)
+                .setNegativeButton("Cancelar", null)
+                .create();
+
+        dialog.setOnShowListener(d ->
+            dialog.getButton(AlertDialog.BUTTON_POSITIVE).setOnClickListener(v -> {
+                String subasta = edtSubasta.getText().toString().trim();
+                String item = edtItem.getText().toString().trim();
+                if (subasta.isEmpty() || item.isEmpty()) {
+                    mostrarError("Ingresá subasta e item."); return;
+                }
+                edtAdminSubastaId.setText(subasta);
+                edtAdminItemId.setText(item);
+                dialog.dismiss();
+                cerrarItem();
+            })
+        );
+        dialog.show();
+    }
+
+    private void mostrarDialogMultas() {
+        LinearLayout container = buildDialogContainer();
+        container.addView(buildLabel("ID DE CLIENTE"));
+        EditText edtCliente = buildInput("ID del cliente", android.text.InputType.TYPE_CLASS_NUMBER);
+        container.addView(edtCliente);
+        container.addView(buildLabel("ID DE SUBASTA"));
+        EditText edtSubasta = buildInput("ID de subasta", android.text.InputType.TYPE_CLASS_NUMBER);
+        container.addView(edtSubasta);
+        container.addView(buildLabel("MONTO DE MULTA"));
+        EditText edtMonto = buildInput("Monto", android.text.InputType.TYPE_NUMBER_FLAG_DECIMAL | android.text.InputType.TYPE_CLASS_NUMBER);
+        container.addView(edtMonto);
+
+        ScrollView scrollView = new ScrollView(this);
+        scrollView.addView(container);
+
+        AlertDialog dialog = new AlertDialog.Builder(this)
+                .setTitle("Crear multa por impago")
+                .setView(scrollView)
+                .setPositiveButton("CREAR MULTA", null)
+                .setNegativeButton("Cancelar", null)
+                .create();
+
+        dialog.setOnShowListener(d ->
+            dialog.getButton(AlertDialog.BUTTON_POSITIVE).setOnClickListener(v -> {
+                String cliente = edtCliente.getText().toString().trim();
+                String subasta = edtSubasta.getText().toString().trim();
+                String monto = edtMonto.getText().toString().trim();
+                if (cliente.isEmpty() || subasta.isEmpty() || monto.isEmpty()) {
+                    mostrarError("Completá todos los campos."); return;
+                }
+                edtAdminClienteMulta.setText(cliente);
+                edtAdminSubastaId.setText(subasta);
+                edtAdminMontoMulta.setText(monto);
+                dialog.dismiss();
+                crearMulta();
+            })
+        );
+        dialog.show();
+    }
+
     private void cerrarSesionAdmin() {
         SharedPreferences preferences = getSharedPreferences("sesion", MODE_PRIVATE);
         preferences.edit().clear().apply();
@@ -611,7 +1022,6 @@ public class AdminActivity extends AppCompatActivity {
         while ((linea = reader.readLine()) != null) {
             respuesta.append(linea);
         }
-
         return respuesta.toString();
     }
 }

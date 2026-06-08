@@ -1,114 +1,33 @@
 <?xml version="1.0" encoding="utf-8"?>
-<FrameLayout xmlns:android="http://schemas.android.com/apk/res/android"
+<LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
     android:id="@+id/rootSplash"
     android:layout_width="match_parent"
     android:layout_height="match_parent"
     android:background="@drawable/bg_premium_gradient"
     android:fitsSystemWindows="true"
-    android:paddingTop="24dp"
-    android:paddingBottom="42dp">
+    android:gravity="center"
+    android:orientation="vertical"
+    android:paddingLeft="48dp"
+    android:paddingRight="48dp">
 
-    <LinearLayout
+    <ImageView
+        android:id="@+id/imgSplashLogo"
+        android:layout_width="160dp"
+        android:layout_height="160dp"
+        android:adjustViewBounds="true"
+        android:contentDescription="Auct.io"
+        android:scaleType="centerInside"
+        android:src="@drawable/logo" />
+
+    <TextView
         android:layout_width="match_parent"
-        android:layout_height="match_parent"
-        android:gravity="center"
-        android:orientation="vertical"
-        android:paddingLeft="28dp"
-        android:paddingRight="28dp">
+        android:layout_height="wrap_content"
+        android:layout_marginTop="28dp"
+        android:letterSpacing="0.14"
+        android:text="AUCT.IO"
+        android:textAlignment="center"
+        android:textColor="#FFFFFF"
+        android:textSize="38sp"
+        android:textStyle="bold" />
 
-        <TextView
-            android:layout_width="wrap_content"
-            android:layout_height="wrap_content"
-            android:letterSpacing="0.14"
-            android:text="WELCOME TO"
-            android:textColor="#9FB3C8"
-            android:textSize="11sp"
-            android:textStyle="bold" />
-
-        <FrameLayout
-            android:layout_width="112dp"
-            android:layout_height="112dp"
-            android:layout_marginTop="18dp"
-            android:background="@drawable/bg_icon_circle"
-            android:elevation="10dp">
-
-            <ImageView
-                android:id="@+id/imgSplashLogo"
-                android:layout_width="70dp"
-                android:layout_height="70dp"
-                android:layout_gravity="center"
-                android:adjustViewBounds="true"
-                android:contentDescription="Auct.io"
-                android:scaleType="centerInside"
-                android:src="@drawable/ic_gavel" />
-
-        </FrameLayout>
-
-        <TextView
-            android:layout_width="match_parent"
-            android:layout_height="wrap_content"
-            android:layout_marginTop="24dp"
-            android:letterSpacing="0.10"
-            android:text="AUCT.IO"
-            android:textAlignment="center"
-            android:textColor="#FFFFFF"
-            android:textSize="35sp"
-            android:textStyle="bold" />
-
-        <TextView
-            android:layout_width="match_parent"
-            android:layout_height="wrap_content"
-            android:layout_marginTop="6dp"
-            android:letterSpacing="0.12"
-            android:text="PREMIER AUCTION HOUSE"
-            android:textAlignment="center"
-            android:textColor="#C9A646"
-            android:textSize="12sp"
-            android:textStyle="bold" />
-
-        <View
-            android:layout_width="76dp"
-            android:layout_height="2dp"
-            android:layout_marginTop="22dp"
-            android:background="#C9A646" />
-
-        <TextView
-            android:layout_width="match_parent"
-            android:layout_height="wrap_content"
-            android:layout_marginTop="22dp"
-            android:text="Bid your dreams"
-            android:textAlignment="center"
-            android:textColor="#FFFFFF"
-            android:textSize="21sp"
-            android:textStyle="bold" />
-
-        <TextView
-            android:layout_width="match_parent"
-            android:layout_height="wrap_content"
-            android:layout_marginTop="8dp"
-            android:lineSpacingExtra="3dp"
-            android:text="Subastas exclusivas, activos verificados y operaciones seguras."
-            android:textAlignment="center"
-            android:textColor="#D7E3EF"
-            android:textSize="14sp" />
-
-        <TextView
-            android:layout_width="match_parent"
-            android:layout_height="wrap_content"
-            android:layout_marginTop="34dp"
-            android:letterSpacing="0.10"
-            android:text="SECURE DIGITAL GALLERY"
-            android:textAlignment="center"
-            android:textColor="#9FB3C8"
-            android:textSize="11sp"
-            android:textStyle="bold" />
-
-        <View
-            android:layout_width="42dp"
-            android:layout_height="1dp"
-            android:layout_marginTop="10dp"
-            android:background="#C9A646" />
-
-    </LinearLayout>
-
-</FrameLayout>
+</LinearLayout>

@@ -34,14 +34,15 @@ public class HomeActivity extends AppCompatActivity {
     private Button btnActualizarSubastas;
     private LinearLayout contenedorSubastas;
 
-    private Button btnMediosPago;
-    private Button btnSolicitarSubasta;
-    private Button btnHistorial;
-    private Button btnPerfil;
-    private Button btnNotificaciones;
-    private Button btnMultas;
-    private Button btnCompras;
-    private Button btnAdmin;
+    // tiles reemplazados por LinearLayout — se acceden via findViewById directo
+    private Button btnMediosPago = null;
+    private Button btnSolicitarSubasta = null;
+    private Button btnHistorial = null;
+    private Button btnPerfil = null;
+    private Button btnNotificaciones = null;
+    private Button btnMultas = null;
+    private Button btnCompras = null;
+    private Button btnAdmin = null;
 
     /*
      IMPORTANTE:
@@ -49,6 +50,7 @@ public class HomeActivity extends AppCompatActivity {
     */
 
     private int userId;
+    private String token;
 
     private final ExecutorService executor = Executors.newSingleThreadExecutor();
     private final Handler mainHandler = new Handler(Looper.getMainLooper());
@@ -67,19 +69,20 @@ public class HomeActivity extends AppCompatActivity {
         txtCategoria = findViewById(R.id.txtCategoria);
         txtMensajeHome = findViewById(R.id.txtMensajeHome);
         btnActualizarSubastas = findViewById(R.id.btnActualizarSubastas);
-        btnMediosPago = findViewById(R.id.btnMediosPago);
-        btnSolicitarSubasta = findViewById(R.id.btnSolicitarSubasta);
-        btnHistorial = findViewById(R.id.btnHistorial);
-        btnPerfil = findViewById(R.id.btnPerfil);
-        btnNotificaciones = findViewById(R.id.btnNotificaciones);
-        btnMultas = findViewById(R.id.btnMultas);
-        btnCompras = findViewById(R.id.btnCompras);
-        btnAdmin = findViewById(R.id.btnAdmin);
+        btnMediosPago = null;
+        btnSolicitarSubasta = null;
+        btnHistorial = null;
+        btnPerfil = null;
+        btnNotificaciones = null;
+        btnMultas = null;
+        btnCompras = null;
+        btnAdmin = null;
         contenedorSubastas = findViewById(R.id.contenedorSubastas);
 
         SharedPreferences preferences = getSharedPreferences("sesion", MODE_PRIVATE);
 
         userId = preferences.getInt("userId", 0);
+        token = preferences.getString("token", "");
         String nombre = preferences.getString("nombre", "");
         String apellido = preferences.getString("apellido", "");
         String categoria = preferences.getString("categoria", "");
@@ -88,49 +91,34 @@ public class HomeActivity extends AppCompatActivity {
         txtBienvenida.setText("Bienvenido, " + nombre + " " + apellido);
         txtCategoria.setText("Categoría: " + categoria);
 
-        btnAdmin.setVisibility(esAdmin ? View.VISIBLE : View.GONE);
+        View tileAdmin = findViewById(R.id.btnAdmin);
+        tileAdmin.setVisibility(esAdmin ? View.VISIBLE : View.GONE);
 
         btnActualizarSubastas.setOnClickListener(v -> cargarSubastas());
 
-        btnMediosPago.setOnClickListener(v -> {
-            Intent intent = new Intent(HomeActivity.this, PaymentMethodsActivity.class);
-            startActivity(intent);
-        });
+        findViewById(R.id.btnMediosPago).setOnClickListener(v ->
+                startActivity(new Intent(HomeActivity.this, PaymentMethodsActivity.class)));
 
-        btnSolicitarSubasta.setOnClickListener(v -> {
-            Intent intent = new Intent(HomeActivity.this, ProductRequestActivity.class);
-            startActivity(intent);
-        });
+        findViewById(R.id.btnSolicitarSubasta).setOnClickListener(v ->
+                startActivity(new Intent(HomeActivity.this, ProductRequestActivity.class)));
 
-        btnHistorial.setOnClickListener(v -> {
-            Intent intent = new Intent(HomeActivity.this, HistoryActivity.class);
-            startActivity(intent);
-        });
+        findViewById(R.id.btnHistorial).setOnClickListener(v ->
+                startActivity(new Intent(HomeActivity.this, HistoryActivity.class)));
 
-        btnPerfil.setOnClickListener(v -> {
-            Intent intent = new Intent(HomeActivity.this, ProfileActivity.class);
-            startActivity(intent);
-        });
+        findViewById(R.id.btnPerfil).setOnClickListener(v ->
+                startActivity(new Intent(HomeActivity.this, ProfileActivity.class)));
 
-        btnNotificaciones.setOnClickListener(v -> {
-            Intent intent = new Intent(HomeActivity.this, NotificationsActivity.class);
-            startActivity(intent);
-        });
+        findViewById(R.id.btnNotificaciones).setOnClickListener(v ->
+                startActivity(new Intent(HomeActivity.this, NotificationsActivity.class)));
 
-        btnMultas.setOnClickListener(v -> {
-            Intent intent = new Intent(HomeActivity.this, FinesActivity.class);
-            startActivity(intent);
-        });
+        findViewById(R.id.btnMultas).setOnClickListener(v ->
+                startActivity(new Intent(HomeActivity.this, FinesActivity.class)));
 
-        btnCompras.setOnClickListener(v -> {
-            Intent intent = new Intent(HomeActivity.this, PurchasesActivity.class);
-            startActivity(intent);
-        });
+        findViewById(R.id.btnCompras).setOnClickListener(v ->
+                startActivity(new Intent(HomeActivity.this, PurchasesActivity.class)));
 
-        btnAdmin.setOnClickListener(v -> {
-            Intent intent = new Intent(HomeActivity.this, AdminActivity.class);
-            startActivity(intent);
-        });
+        tileAdmin.setOnClickListener(v ->
+                startActivity(new Intent(HomeActivity.this, AdminActivity.class)));
 
         cargarSubastas();
         if (getIntent().getBooleanExtra("goToAuctions", false)) {
@@ -155,6 +143,7 @@ public class HomeActivity extends AppCompatActivity {
 
                 connection.setRequestMethod("GET");
                 connection.setRequestProperty("Accept", "application/json");
+                connection.setRequestProperty("Authorization", "Bearer " + token);
 
                 int statusCode = connection.getResponseCode();
 
@@ -197,19 +186,21 @@ public class HomeActivity extends AppCompatActivity {
             return;
         }
 
-        txtMensajeHome.setText("Subastas encontradas: " + subastas.length());
+        int total = subastas.length();
+        int mostrar = Math.min(total, 3);
+        txtMensajeHome.setText(total == 1 ? "1 subasta disponible" : total + " subastas disponibles");
 
         try {
-            for (int i = 0; i < subastas.length(); i++) {
+            for (int i = 0; i < mostrar; i++) {
                 JSONObject subasta = subastas.getJSONObject(i);
 
                 int id = subasta.getInt("id");
-                String fecha = subasta.optString("fecha", "-");
-                String hora = subasta.optString("hora", "-");
+                String fecha = formatearFecha(subasta.optString("fecha", "-"));
+                String hora = formatearHora(subasta.optString("hora", "-"));
                 String estado = subasta.optString("estado", "-");
                 String ubicacion = subasta.optString("ubicacion", "-");
                 String categoria = subasta.optString("categoria", "-");
-                String moneda = subasta.optString("moneda", "-");
+                String moneda = formatearMoneda(subasta.optString("moneda", "-"));
                 boolean puedePujar = subasta.optBoolean("puedePujar", false);
                 String motivoBloqueo = subasta.optString("motivoBloqueo", "");
 
@@ -226,6 +217,21 @@ public class HomeActivity extends AppCompatActivity {
                 );
 
                 contenedorSubastas.addView(card);
+            }
+
+            if (total > 0) {
+                Button btnVerTodas = new Button(this);
+                btnVerTodas.setText(total > 3 ? "VER TODAS (" + total + " SUBASTAS) →" : "VER TODAS LAS SUBASTAS →");
+                btnVerTodas.setTextColor(Color.parseColor("#071827"));
+                btnVerTodas.setTextSize(12);
+                btnVerTodas.setTypeface(null, android.graphics.Typeface.BOLD);
+                btnVerTodas.setBackgroundResource(R.drawable.bg_button_outline);
+                LinearLayout.LayoutParams p = new LinearLayout.LayoutParams(
+                        LinearLayout.LayoutParams.MATCH_PARENT, dp(50));
+                p.setMargins(0, dp(8), 0, 0);
+                btnVerTodas.setLayoutParams(p);
+                btnVerTodas.setOnClickListener(v -> startActivity(new Intent(HomeActivity.this, SubastasActivity.class)));
+                contenedorSubastas.addView(btnVerTodas);
             }
         } catch (Exception e) {
             txtMensajeHome.setText("Error mostrando subastas.");
@@ -453,6 +459,45 @@ public class HomeActivity extends AppCompatActivity {
     }
     private int dp(int value) {
         return (int) (value * getResources().getDisplayMetrics().density);
+    }
+
+    private String formatearFecha(String raw) {
+        if (raw == null || raw.equals("-")) return "-";
+        raw = raw.trim();
+        if (raw.startsWith("date ")) raw = raw.substring(5).trim();
+        try {
+            String datePart = raw.length() >= 10 ? raw.substring(0, 10) : raw;
+            java.text.SimpleDateFormat inFmt = new java.text.SimpleDateFormat("yyyy-MM-dd", java.util.Locale.getDefault());
+            java.text.SimpleDateFormat outFmt = new java.text.SimpleDateFormat("dd/MM/yyyy", java.util.Locale.getDefault());
+            return outFmt.format(inFmt.parse(datePart));
+        } catch (Exception e) {
+            return raw;
+        }
+    }
+
+    private String formatearHora(String raw) {
+        if (raw == null || raw.equals("-")) return "-";
+        raw = raw.trim();
+        if (raw.startsWith("date ")) raw = raw.substring(5).trim();
+        // Handle concatenated datetime like "2026-01-0118:00:00" — take last part after date
+        if (raw.length() > 10) {
+            String after = raw.substring(10);
+            // Could start with T, space, or immediately with time digits
+            if (after.startsWith("T") || after.startsWith(" ")) after = after.substring(1);
+            raw = after;
+        }
+        return raw.length() >= 5 ? raw.substring(0, 5) : raw;
+    }
+
+    private String formatearMoneda(String moneda) {
+        if (moneda == null || moneda.equals("-")) return "-";
+        switch (moneda.toLowerCase().trim()) {
+            case "pesos": return "$";
+            case "dolares":
+            case "dólares":
+            case "usd": return "USD";
+            default: return moneda.toUpperCase();
+        }
     }
 
     public void irASeccionSubastas() {

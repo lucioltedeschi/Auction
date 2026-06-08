@@ -1,174 +1,162 @@
 <?xml version="1.0" encoding="utf-8"?>
-<ScrollView xmlns:android="http://schemas.android.com/apk/res/android"
+<LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
     android:layout_width="match_parent"
     android:layout_height="match_parent"
     android:background="#F3F0E8"
-    android:fillViewport="true">
+    android:fitsSystemWindows="true"
+    android:orientation="vertical">
 
     <LinearLayout
         android:layout_width="match_parent"
         android:layout_height="wrap_content"
-        android:orientation="vertical"
-        android:padding="24dp">
+        android:background="#071827"
+        android:elevation="6dp"
+        android:gravity="center_vertical"
+        android:orientation="horizontal"
+        android:paddingLeft="12dp"
+        android:paddingTop="10dp"
+        android:paddingRight="14dp"
+        android:paddingBottom="10dp">
 
         <TextView
-            android:id="@+id/txtTituloMediosPago"
-            android:layout_width="match_parent"
-            android:layout_height="wrap_content"
-            android:text="Mis medios de pago"
-            android:letterSpacing="0.04"
-            android:textColor="#071827"
-            android:textSize="26sp"
-            android:textStyle="bold" />
-
-        <TextView
-            android:id="@+id/txtDescripcionMediosPago"
-            android:layout_width="match_parent"
-            android:layout_height="wrap_content"
-            android:layout_marginTop="10dp"
-            android:text="Agregá cuenta bancaria, tarjeta de crédito o cheque certificado. La empresa debe verificarlo antes de habilitar pujas."
-            android:textColor="#475569"
-            android:textSize="16sp" />
-
-        <Button
-            android:id="@+id/btnNuevaCuentaBancaria"
-            android:layout_width="match_parent"
-            android:layout_height="52dp"
-            android:layout_marginTop="22dp"
-            android:background="@drawable/bg_button_dark"
-            android:text="Agregar cuenta bancaria"
+            android:id="@+id/btnBackMediosPago"
+            android:layout_width="36dp"
+            android:layout_height="36dp"
+            android:background="@drawable/bg_nav_icon_circle"
+            android:gravity="center"
+            android:text="←"
             android:textColor="#FFFFFF"
+            android:textSize="18sp"
             android:textStyle="bold" />
 
-        <Button
-            android:id="@+id/btnNuevaTarjetaCredito"
-            android:layout_width="match_parent"
-            android:layout_height="52dp"
-            android:layout_marginTop="10dp"
-            android:background="@drawable/bg_button_dark"
-            android:text="Agregar tarjeta de crédito"
-            android:textColor="#FFFFFF"
-            android:textStyle="bold" />
+        <LinearLayout
+            android:layout_width="0dp"
+            android:layout_height="wrap_content"
+            android:layout_marginLeft="12dp"
+            android:layout_weight="1"
+            android:orientation="vertical">
 
-        <Button
-            android:id="@+id/btnNuevoChequeCertificado"
-            android:layout_width="match_parent"
-            android:layout_height="52dp"
-            android:layout_marginTop="10dp"
-            android:background="@drawable/bg_button_gold"
-            android:text="Agregar cheque certificado"
-            android:textColor="#071827"
-            android:textStyle="bold" />
+            <TextView
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:letterSpacing="0.08"
+                android:text="AUCT.IO"
+                android:textColor="#FFFFFF"
+                android:textSize="16sp"
+                android:textStyle="bold" />
+
+            <TextView
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:layout_marginTop="1dp"
+                android:letterSpacing="0.10"
+                android:text="MEDIOS DE PAGO"
+                android:textColor="#A8872F"
+                android:textSize="10sp"
+                android:textStyle="bold" />
+
+        </LinearLayout>
+
+    </LinearLayout>
+
+    <ScrollView
+        android:layout_width="match_parent"
+        android:layout_height="0dp"
+        android:layout_weight="1"
+        android:fillViewport="true">
 
         <LinearLayout
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
-            android:layout_marginTop="22dp"
-            android:background="@drawable/bg_card_premium"
-            android:elevation="4dp"
             android:orientation="vertical"
-            android:padding="18dp">
+            android:paddingLeft="18dp"
+            android:paddingTop="22dp"
+            android:paddingRight="18dp"
+            android:paddingBottom="28dp">
 
             <TextView
                 android:layout_width="match_parent"
                 android:layout_height="wrap_content"
-                android:text="Agregar medio"
-                android:textColor="#0F172A"
+                android:text="Agregar método"
+                android:textColor="#071827"
                 android:textSize="20sp"
                 android:textStyle="bold" />
 
-            <Spinner
-                android:id="@+id/spTipoMedioPago"
+            <TextView
                 android:layout_width="match_parent"
-                android:layout_height="52dp"
-                android:layout_marginTop="14dp" />
-
-            <EditText
-                android:id="@+id/edtEntidadMedioPago"
-                android:layout_width="match_parent"
-                android:layout_height="52dp"
-                android:layout_marginTop="12dp"
-                android:background="@drawable/bg_input_premium"
-                android:hint="Entidad: banco, emisor o certificante"
-                android:padding="14dp" />
-
-            <EditText
-                android:id="@+id/edtReferenciaMedioPago"
-                android:layout_width="match_parent"
-                android:layout_height="52dp"
-                android:layout_marginTop="12dp"
-                android:background="@drawable/bg_input_premium"
-                android:hint="Referencia: CBU, últimos dígitos o nro. de cheque"
-                android:padding="14dp" />
-
-            <Spinner
-                android:id="@+id/spMonedaMedioPago"
-                android:layout_width="match_parent"
-                android:layout_height="52dp"
-                android:layout_marginTop="12dp" />
-
-            <Spinner
-                android:id="@+id/spEsExtranjera"
-                android:layout_width="match_parent"
-                android:layout_height="52dp"
-                android:layout_marginTop="12dp" />
-
-            <EditText
-                android:id="@+id/edtMontoCheque"
-                android:layout_width="match_parent"
-                android:layout_height="52dp"
-                android:layout_marginTop="12dp"
-                android:background="@drawable/bg_input_premium"
-                android:hint="Monto del cheque certificado, si aplica"
-                android:inputType="numberDecimal"
-                android:padding="14dp" />
+                android:layout_height="wrap_content"
+                android:layout_marginTop="4dp"
+                android:text="La empresa verifica el método antes de habilitarlo para pujas."
+                android:textColor="#6B7280"
+                android:textSize="13sp"
+                android:lineSpacingExtra="3dp" />
 
             <Button
-                android:id="@+id/btnAgregarMedioPago"
+                android:id="@+id/btnNuevaCuentaBancaria"
                 android:layout_width="match_parent"
                 android:layout_height="52dp"
                 android:layout_marginTop="16dp"
-                android:background="@drawable/bg_button_gold"
-                android:text="Registrar medio de pago"
-                android:textColor="#071827"
+                android:background="@drawable/bg_button_dark"
+                android:text="Cuenta bancaria"
+                android:textColor="#FFFFFF"
+                android:textSize="13sp"
                 android:textStyle="bold" />
+
+            <Button
+                android:id="@+id/btnNuevaTarjetaCredito"
+                android:layout_width="match_parent"
+                android:layout_height="52dp"
+                android:layout_marginTop="8dp"
+                android:background="@drawable/bg_button_dark"
+                android:text="Tarjeta de crédito"
+                android:textColor="#FFFFFF"
+                android:textSize="13sp"
+                android:textStyle="bold" />
+
+            <Button
+                android:id="@+id/btnNuevoChequeCertificado"
+                android:layout_width="match_parent"
+                android:layout_height="52dp"
+                android:layout_marginTop="8dp"
+                android:background="@drawable/bg_button_dark"
+                android:text="Cheque certificado"
+                android:textColor="#FFFFFF"
+                android:textSize="13sp"
+                android:textStyle="bold" />
+
+            <View
+                android:layout_width="match_parent"
+                android:layout_height="1dp"
+                android:layout_marginTop="28dp"
+                android:background="#E2E8F0" />
+
+            <TextView
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:layout_marginTop="20dp"
+                android:text="Mis métodos registrados"
+                android:textColor="#071827"
+                android:textSize="20sp"
+                android:textStyle="bold" />
+
+            <TextView
+                android:id="@+id/txtMensajeMediosPago"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:layout_marginTop="4dp"
+                android:text="Cargando medios de pago..."
+                android:textColor="#6B7280"
+                android:textSize="13sp" />
+
+            <LinearLayout
+                android:id="@+id/contenedorMediosPago"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:layout_marginTop="14dp"
+                android:orientation="vertical" />
+
         </LinearLayout>
 
-        <Button
-            android:id="@+id/btnActualizarMediosPago"
-            android:layout_width="match_parent"
-            android:layout_height="wrap_content"
-            android:layout_marginTop="22dp"
-            android:background="@drawable/bg_button_dark"
-            android:text="Actualizar listado"
-            android:textColor="#FFFFFF"
-            android:textStyle="bold" />
+    </ScrollView>
 
-        <TextView
-            android:id="@+id/txtMensajeMediosPago"
-            android:layout_width="match_parent"
-            android:layout_height="wrap_content"
-            android:layout_marginTop="14dp"
-            android:text="Cargando medios de pago..."
-            android:textColor="#475569"
-            android:textSize="16sp" />
-
-        <LinearLayout
-            android:id="@+id/contenedorMediosPago"
-            android:layout_width="match_parent"
-            android:layout_height="wrap_content"
-            android:layout_marginTop="18dp"
-            android:orientation="vertical" />
-
-        <Button
-            android:id="@+id/btnVolverDesdeMediosPago"
-            android:layout_width="match_parent"
-            android:layout_height="wrap_content"
-            android:layout_marginTop="24dp"
-            android:background="@drawable/bg_button_outline"
-            android:text="Volver"
-            android:textColor="#0F172A"
-            android:textStyle="bold" />
-
-    </LinearLayout>
-</ScrollView>
+</LinearLayout>

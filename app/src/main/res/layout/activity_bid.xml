@@ -1,18 +1,99 @@
 <?xml version="1.0" encoding="utf-8"?>
 <LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
-    android:id="@+id/rootBid"
     android:layout_width="match_parent"
     android:layout_height="match_parent"
     android:background="#F3F0E8"
     android:fitsSystemWindows="true"
     android:orientation="vertical">
 
+    <!-- ─── STICKY TOP BAR ──────────────────────────────────────────── -->
+    <LinearLayout
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:background="#071827"
+        android:elevation="6dp"
+        android:gravity="center_vertical"
+        android:orientation="horizontal"
+        android:paddingLeft="12dp"
+        android:paddingTop="10dp"
+        android:paddingRight="14dp"
+        android:paddingBottom="10dp">
+
+        <TextView
+            android:id="@+id/btnBackBid"
+            android:layout_width="36dp"
+            android:layout_height="36dp"
+            android:background="@drawable/bg_nav_icon_circle"
+            android:gravity="center"
+            android:text="←"
+            android:textColor="#FFFFFF"
+            android:textSize="18sp"
+            android:textStyle="bold" />
+
+        <LinearLayout
+            android:layout_width="0dp"
+            android:layout_height="wrap_content"
+            android:layout_marginLeft="12dp"
+            android:layout_weight="1"
+            android:orientation="vertical">
+
+            <TextView
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:letterSpacing="0.10"
+                android:text="AUCT.IO"
+                android:textColor="#FFFFFF"
+                android:textSize="17sp"
+                android:textStyle="bold" />
+
+            <TextView
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:layout_marginTop="2dp"
+                android:text="PUJA EN VIVO"
+                android:textColor="#A8872F"
+                android:textSize="10sp"
+                android:textStyle="bold"
+                android:letterSpacing="0.08" />
+
+        </LinearLayout>
+
+        <LinearLayout
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:gravity="end"
+            android:orientation="vertical">
+
+            <TextView
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:text="MEDIO DE PAGO"
+                android:textColor="#64748B"
+                android:textSize="8sp"
+                android:textStyle="bold"
+                android:letterSpacing="0.08" />
+
+            <TextView
+                android:id="@+id/txtTopBarPagoBid"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:layout_marginTop="2dp"
+                android:text="Cargando…"
+                android:textColor="#D7E3EF"
+                android:textSize="11sp"
+                android:textStyle="bold" />
+
+        </LinearLayout>
+
+    </LinearLayout>
+
+    <!-- ─── SCROLLABLE CONTENT ──────────────────────────────────────── -->
     <ScrollView
         android:layout_width="match_parent"
         android:layout_height="0dp"
         android:layout_weight="1"
         android:fillViewport="true"
-        android:paddingTop="18dp">
+        android:paddingTop="16dp">
 
         <LinearLayout
             android:layout_width="match_parent"
@@ -22,66 +103,10 @@
             android:paddingRight="18dp"
             android:paddingBottom="24dp">
 
-            <!-- HEADER -->
-            <LinearLayout
-                android:layout_width="match_parent"
-                android:layout_height="wrap_content"
-                android:gravity="center_vertical"
-                android:orientation="horizontal">
-
-                <ImageView
-                    android:layout_width="46dp"
-                    android:layout_height="46dp"
-                    android:background="@drawable/bg_icon_circle"
-                    android:padding="9dp"
-                    android:src="@drawable/ic_gavel" />
-
-                <LinearLayout
-                    android:layout_width="0dp"
-                    android:layout_height="wrap_content"
-                    android:layout_marginLeft="12dp"
-                    android:layout_weight="1"
-                    android:orientation="vertical">
-
-                    <TextView
-                        android:layout_width="match_parent"
-                        android:layout_height="wrap_content"
-                        android:letterSpacing="0.10"
-                        android:text="AUCT.IO"
-                        android:textColor="#071827"
-                        android:textSize="23sp"
-                        android:textStyle="bold" />
-
-                    <TextView
-                        android:layout_width="match_parent"
-                        android:layout_height="wrap_content"
-                        android:letterSpacing="0.12"
-                        android:text="PUJA EN VIVO"
-                        android:textColor="#A8872F"
-                        android:textSize="10sp"
-                        android:textStyle="bold" />
-
-                </LinearLayout>
-
-                <TextView
-                    android:layout_width="wrap_content"
-                    android:layout_height="34dp"
-                    android:background="@drawable/bg_live_chip"
-                    android:gravity="center"
-                    android:paddingLeft="14dp"
-                    android:paddingRight="14dp"
-                    android:text="SEGURO"
-                    android:textColor="#166534"
-                    android:textSize="11sp"
-                    android:textStyle="bold" />
-
-            </LinearLayout>
-
             <!-- HERO LOT -->
             <LinearLayout
                 android:layout_width="match_parent"
-                android:layout_height="210dp"
-                android:layout_marginTop="20dp"
+                android:layout_height="200dp"
                 android:background="@drawable/bg_visual_lot"
                 android:elevation="2dp"
                 android:orientation="vertical"
@@ -100,7 +125,7 @@
                     android:id="@+id/txtTituloPuja"
                     android:layout_width="match_parent"
                     android:layout_height="wrap_content"
-                    android:layout_marginTop="64dp"
+                    android:layout_marginTop="58dp"
                     android:text="Realizar puja"
                     android:textColor="#FFFFFF"
                     android:textSize="27sp"
@@ -179,7 +204,7 @@
                     android:layout_width="match_parent"
                     android:layout_height="wrap_content"
                     android:layout_marginTop="6dp"
-                    android:text="Ingresá un monto superior a la mejor oferta actual y dentro de las reglas permitidas."
+                    android:text="Ingresá un monto dentro del rango permitido."
                     android:textColor="#6B7280"
                     android:textSize="13sp"
                     android:lineSpacingExtra="3dp" />
@@ -216,18 +241,18 @@
                     android:id="@+id/txtMensajePuja"
                     android:layout_width="match_parent"
                     android:layout_height="wrap_content"
-                    android:layout_marginTop="12dp"
+                    android:layout_marginTop="10dp"
                     android:text=""
                     android:textAlignment="center"
                     android:textColor="#DC2626"
-                    android:textSize="14sp"
+                    android:textSize="13sp"
                     android:lineSpacingExtra="3dp" />
 
                 <Button
                     android:id="@+id/btnEnviarPuja"
                     android:layout_width="match_parent"
                     android:layout_height="52dp"
-                    android:layout_marginTop="16dp"
+                    android:layout_marginTop="14dp"
                     android:background="@drawable/bg_button_gold"
                     android:text="ENVIAR PUJA"
                     android:textColor="#071827"
@@ -265,22 +290,12 @@
                     android:layout_width="match_parent"
                     android:layout_height="wrap_content"
                     android:layout_marginTop="12dp"
-                    android:text="Tu identidad y medios de pago fueron verificados para operar en subastas habilitadas. La puja será registrada en el sistema con trazabilidad."
+                    android:text="Tu identidad y medios de pago fueron verificados. La puja será registrada con trazabilidad completa."
                     android:textColor="#475569"
                     android:textSize="13sp"
                     android:lineSpacingExtra="4dp" />
 
             </LinearLayout>
-
-            <Button
-                android:id="@+id/btnVolverDetalle"
-                android:layout_width="match_parent"
-                android:layout_height="50dp"
-                android:layout_marginTop="22dp"
-                android:background="@drawable/bg_button_outline"
-                android:text="VOLVER AL LOTE"
-                android:textColor="#071827"
-                android:textStyle="bold" />
 
         </LinearLayout>
 
