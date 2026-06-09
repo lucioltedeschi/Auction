@@ -1,11 +1,7 @@
-USE auction;
-GO
 
-/* ============================================================
-   SEED AUCTIONS — 3 nuevas subastas con objetos variados
-   Requiere que SCRIPT.txt ya haya sido ejecutado
-   (usuarios, empleado, subastador ya existen)
-   ============================================================ */
+
+use auction;
+GO
 
 DECLARE @empleadoId   INT;
 DECLARE @subastadorId INT;
@@ -26,11 +22,11 @@ SELECT @sofiaId      = identificador FROM Users WHERE documento = '31888777';
 INSERT INTO Auctions (fecha, hora, estado, subastador, ubicacion, capacidadAsistentes, tieneDeposito, seguridadPropia, categoria, moneda)
 VALUES
 -- Subasta activa hoy (en_curso) — Arte & Antigüedades — pesos — común
-(CAST(GETDATE() AS DATE), '10:00', 'en_curso',  @subastadorId, 'Buenos Aires - Sala Palermo', 120, 'si', 'si', 'comun',   'pesos'),
+(CAST(GETDATE() AS DATE), '21:02', 'en_curso',  @subastadorId, 'Buenos Aires - Sala Palermo', 120, 'si', 'si', 'comun',   'pesos'),
 -- Subasta abierta prox. semana — Joyería & Relojes — dólares — oro
-(DATEADD(DAY, 7,  CAST(GETDATE() AS DATE)), '19:00', 'abierta', @subastadorId, 'Buenos Aires - Salón VIP',    60,  'si', 'si', 'oro',     'dolares'),
+(DATEADD(DAY, 7,  CAST(GETDATE() AS DATE)), '21:10', 'abierta', @subastadorId, 'Buenos Aires - Salón VIP',    60,  'si', 'si', 'oro',     'dolares'),
 -- Subasta programada a futuro — Muebles & Diseño — pesos — plata
-(DATEADD(DAY, 21, CAST(GETDATE() AS DATE)), '16:00', 'programada', @subastadorId, 'Rosario - Centro Cultural', 90,  'si', 'no', 'plata',   'pesos');
+(DATEADD(DAY, 21, CAST(GETDATE() AS DATE)), '21:10', 'programada', @subastadorId, 'Rosario - Centro Cultural', 90,  'si', 'no', 'plata',   'pesos');
 GO
 
 DECLARE @empleadoId   INT;

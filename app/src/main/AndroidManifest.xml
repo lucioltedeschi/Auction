@@ -86,6 +86,10 @@
             android:windowSoftInputMode="adjustResize" />
 
         <activity
+            android:name=".UserReviewActivity"
+            android:exported="false" />
+
+        <activity
             android:name=".SubastasActivity"
             android:exported="false" />
 

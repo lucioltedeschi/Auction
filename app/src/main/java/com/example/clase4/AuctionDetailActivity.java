@@ -200,8 +200,26 @@ public class AuctionDetailActivity extends AppCompatActivity {
             if (estado.optBoolean("finalizada", false)) {
                 countdownHandler.removeCallbacks(countdownRunnable);
                 txtItemVivo.setText("Subasta finalizada");
+                txtTiempoRestante.setTextSize(44);
                 txtTiempoRestante.setText("--:--");
                 txtTiempoRestante.setTextColor(Color.parseColor("#64748B"));
+                txtMejorOfertaVivo.setText("—");
+                txtPujaMinimaVivo.setText("—");
+                txtPujaMaximaVivo.setText("—");
+                cargarCatalogo();
+                return;
+            }
+
+            // Manejo de subastas pendientes (aún no comienzan)
+            if (estado.optBoolean("pendiente", false)) {
+                countdownHandler.removeCallbacks(countdownRunnable);
+                String inicioPend = textoInicioSubasta(estado);
+                txtItemVivo.setText(inicioPend.isEmpty()
+                        ? "Subasta próxima a comenzar"
+                        : "Comienza " + inicioPend);
+                txtTiempoRestante.setTextSize(44);
+                txtTiempoRestante.setText("--:--");
+                txtTiempoRestante.setTextColor(Color.parseColor("#A8872F"));
                 txtMejorOfertaVivo.setText("—");
                 txtPujaMinimaVivo.setText("—");
                 txtPujaMaximaVivo.setText("—");
@@ -218,7 +236,11 @@ public class AuctionDetailActivity extends AppCompatActivity {
             String nuevoItemId = itemActual != null ? String.valueOf(itemActual.optInt("itemId", 0)) : "";
             double mejorOferta = estado.optDouble("mejorOferta", 0);
             double pujaMinima = estado.optDouble("pujaMinima", 0);
-            int secs = estado.optInt("segundosRestantes", 0);
+
+            // El backend ya envía el tiempo en SEGUNDOS (no en minutos).
+            String fase = estado.optString("fase", "");
+            boolean tieneSegundos = !estado.isNull("segundosRestantes");
+            int secs = tieneSegundos ? Math.max(estado.optInt("segundosRestantes", 0), 0) : 0;
 
             String pujaMaxima = estado.isNull("pujaMaxima")
                     ? "sin límite"
@@ -243,11 +265,33 @@ public class AuctionDetailActivity extends AppCompatActivity {
             txtPujaMinimaVivo.setText("$" + String.format("%.2f", pujaMinima));
             txtPujaMaximaVivo.setText(pujaMaxima);
 
-            // Reset and restart countdown
+            // Temporizador según la fase informada por el backend
             countdownHandler.removeCallbacks(countdownRunnable);
-            segundosRestantes = secs;
-            actualizarContadorUI();
-            if (secs > 0) countdownHandler.postDelayed(countdownRunnable, 1000);
+
+            if ("previa".equals(fase)) {
+                // Aún no comienza: mostrar cuándo arranca + cuenta regresiva hasta el inicio
+                String inicio = textoInicioSubasta(estado);
+                if (!inicio.isEmpty()) {
+                    txtItemVivo.setText("Comienza " + inicio);
+                }
+                segundosRestantes = secs;
+                actualizarContadorUI();
+                if (segundosRestantes > 0) countdownHandler.postDelayed(countdownRunnable, 1000);
+
+            } else if ("esperando_oferta".equals(fase)) {
+                // Ya comenzó pero sin ofertas: el contador de duracionItemMinutos
+                // arranca recién con la primera puja
+                segundosRestantes = 0;
+                txtTiempoRestante.setTextSize(15);
+                txtTiempoRestante.setText("Esperando 1ª oferta");
+                txtTiempoRestante.setTextColor(Color.parseColor("#A8872F"));
+
+            } else {
+                // en_puja: corre la cuenta regresiva normal (MM:SS)
+                segundosRestantes = secs;
+                actualizarContadorUI();
+                if (segundosRestantes > 0) countdownHandler.postDelayed(countdownRunnable, 1000);
+            }
 
         } catch (Exception e) {
             txtItemVivo.setText("Error recibiendo evento.");
@@ -256,9 +300,30 @@ public class AuctionDetailActivity extends AppCompatActivity {
 
     private void actualizarContadorUI() {
         if (txtTiempoRestante == null) return;
-        int mins = segundosRestantes / 60;
+
+        int totalMinutos = segundosRestantes / 60;
         int secs = segundosRestantes % 60;
-        txtTiempoRestante.setText(String.format("%02d:%02d", mins, secs));
+
+        String textoTiempo;
+        if (totalMinutos >= 60) {
+            // Si hay más de una hora, mostrar en formato "Xd Yh Zm"
+            int dias = totalMinutos / (60 * 24);
+            int horas = (totalMinutos % (60 * 24)) / 60;
+            int mins = totalMinutos % 60;
+
+            if (dias > 0) {
+                textoTiempo = String.format("%dd %dh %dm", dias, horas, mins);
+            } else {
+                textoTiempo = String.format("%dh %dm", horas, mins);
+            }
+        } else {
+            // Para menos de una hora, mostrar MM:SS
+            textoTiempo = String.format("%02d:%02d", totalMinutos, secs);
+        }
+
+        txtTiempoRestante.setText(textoTiempo);
+        // MM:SS en grande; formatos largos (días/horas hasta el inicio) más chicos
+        txtTiempoRestante.setTextSize(totalMinutos >= 60 ? 24 : 44);
 
         // Color changes as time runs low
         if (segundosRestantes <= 10) {
@@ -908,6 +973,20 @@ public class AuctionDetailActivity extends AppCompatActivity {
             raw = after;
         }
         return raw.length() >= 5 ? raw.substring(0, 5) : raw;
+    }
+
+    // Construye un texto legible del inicio de la subasta a partir de los
+    // campos fechaInicio ("yyyy-MM-dd") y horaInicio ("HH:mm") del evento.
+    private String textoInicioSubasta(JSONObject estado) {
+        if (estado == null) return "";
+        String fechaRaw = estado.optString("fechaInicio", "");
+        String hora = estado.optString("horaInicio", "");
+        String fecha = formatearFecha(fechaRaw);
+        boolean hayFecha = fecha != null && !fecha.isEmpty() && !fecha.equals("-");
+        boolean hayHora = hora != null && !hora.isEmpty() && !hora.equals("null");
+        if (!hayFecha && !hayHora) return "";
+        if (hayFecha && hayHora) return fecha + " a las " + hora + " hs";
+        return hayFecha ? fecha : hora + " hs";
     }
 
     private String formatearMoneda(String moneda) {

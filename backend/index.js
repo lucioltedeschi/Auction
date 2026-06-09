@@ -132,13 +132,22 @@ async function obtenerEstadoVivo(pool, auctionId) {
         p.descripcionCatalogo,
         p.descripcionCompleta,
         ISNULL(MAX(b.importe), 0) AS mayorOferta,
-        -- Base del timer: última puja si existe; si no, el horario programado de la subasta
-        DATEDIFF(SECOND, GETDATE(), DATEADD(MINUTE, a.duracionItemMinutos,
-          COALESCE(
-            MAX(b.fechaHora),
-            CAST(CONVERT(varchar(10), a.fecha, 23) + ' ' + CONVERT(varchar(8), a.hora, 108) AS DATETIME)
-          )
-        )) AS segundosRestantes
+        COUNT(b.identificador)    AS cantidadOfertas,
+        CONVERT(varchar(10), a.fecha, 23) AS fechaInicio,
+        CONVERT(varchar(5),  a.hora, 108) AS horaInicio,
+        -- Calcula el tiempo restante (en SEGUNDOS) según la fase de la subasta:
+        --   - En curso CON ofertas: desde ahora hasta (últimaPuja + duracionItemMinutos)
+        --   - En curso SIN ofertas: NULL → el contador recién arranca con la 1ª oferta
+        --   - Antes de iniciar:     desde ahora hasta la hora de inicio (sin duración)
+        CASE
+          WHEN a.estado = 'en_curso' AND COUNT(b.identificador) > 0 THEN
+            DATEDIFF(SECOND, GETDATE(),
+              DATEADD(MINUTE, a.duracionItemMinutos, MAX(b.fechaHora)))
+          WHEN a.estado = 'en_curso' AND COUNT(b.identificador) = 0 THEN
+            NULL
+          ELSE
+            DATEDIFF(SECOND, GETDATE(), CAST(CONVERT(varchar(10), a.fecha, 23) + ' ' + CONVERT(varchar(8), a.hora, 108) AS DATETIME))
+        END AS segundosRestantes
       FROM Auctions a
       INNER JOIN Catalogs c
         ON c.subasta = a.identificador
@@ -179,11 +188,33 @@ async function obtenerEstadoVivo(pool, auctionId) {
     estado.categoria
   );
 
+  const enCurso = estado.estado === "en_curso";
+  const hayOfertas = Number(estado.cantidadOfertas) > 0;
+
+  // Fase del temporizador, para que el cliente sepa qué mostrar:
+  //   previa            → todavía no comenzó: cuenta regresiva hasta la hora de inicio
+  //   esperando_oferta  → ya comenzó pero aún no hubo ofertas: sin contador
+  //   en_puja           → hay ofertas: corre la ventana de duracionItemMinutos
+  let fase;
+  if (!enCurso) fase = "previa";
+  else if (!hayOfertas) fase = "esperando_oferta";
+  else fase = "en_puja";
+
+  // segundosRestantes llega NULL en la fase "esperando_oferta"
+  const segundos =
+    estado.segundosRestantes === null || estado.segundosRestantes === undefined
+      ? null
+      : Math.max(Number(estado.segundosRestantes), 0);
+
   return {
     subastaId: estado.subastaId,
     estado: estado.estado,
     categoria: estado.categoria,
     moneda: estado.moneda,
+    fase,
+    hayOfertas,
+    fechaInicio: estado.fechaInicio,
+    horaInicio: estado.horaInicio,
     itemActual: {
       itemId: estado.itemId,
       descripcionCatalogo: estado.descripcionCatalogo,
@@ -196,7 +227,7 @@ async function obtenerEstadoVivo(pool, auctionId) {
     mejorOferta: Number(estado.mayorOferta),
     pujaMinima: Number(limites.pujaMinima.toFixed(2)),
     pujaMaxima: limites.pujaMaxima === null ? null : Number(limites.pujaMaxima.toFixed(2)),
-    segundosRestantes: Math.max(Number(estado.segundosRestantes || 0), 0),
+    segundosRestantes: segundos,
     duracionItemMinutos: estado.duracionItemMinutos,
     mecanismoTiempoReal: "SSE",
     eventosUrl: `/api/auctions/${auctionId}/events`,
@@ -664,6 +695,48 @@ app.get("/api/admin/users/pending", requireEmployee, async (req, res) => {
   }
 });
 
+// Detalle de un usuario para revisión interna: info personal completa + fotos del DNI.
+app.get("/api/admin/users/:userId/document", requireEmployee, async (req, res) => {
+  try {
+    const pool = await poolPromise;
+    const result = await pool
+      .request()
+      .input("userId", sql.Int, req.params.userId)
+      .query(`
+        SELECT
+          u.identificador AS id,
+          u.documento,
+          u.nombre,
+          u.apellido,
+          u.email,
+          u.telefono,
+          u.direccion,
+          u.estado,
+          u.fechaAlta,
+          ISNULL(c.admitido, 'no')      AS admitido,
+          ISNULL(c.categoria, 'interno') AS categoria,
+          CAST('' AS XML).value('xs:base64Binary(sql:column("u.fotoDniFrente"))', 'VARCHAR(MAX)') AS fotoDniFrenteBase64,
+          CAST('' AS XML).value('xs:base64Binary(sql:column("u.fotoDniDorso"))', 'VARCHAR(MAX)')  AS fotoDniDorsoBase64
+        FROM Users u
+        LEFT JOIN Clients c
+          ON u.identificador = c.identificador
+        WHERE u.identificador = @userId
+      `);
+
+    if (result.recordset.length === 0) {
+      return res.status(404).json({
+        error: "Usuario no encontrado",
+      });
+    }
+
+    res.status(200).json(result.recordset[0]);
+  } catch (err) {
+    res.status(500).json({
+      error: err.message,
+    });
+  }
+});
+
 app.post("/api/auth/login", async (req, res) => {
   try {
     const { documento, clave } = req.body;
@@ -1122,28 +1195,69 @@ app.get("/api/auctions/:auctionId/events", async (req, res) => {
           UPDATE Auctions
           SET estado = 'en_curso'
           WHERE identificador = @auctionId
-            AND estado = 'programada'
+            AND estado IN ('programada', 'abierta')
             AND CAST(CONVERT(varchar(10), fecha, 23) + ' ' + CONVERT(varchar(8), hora, 108) AS DATETIME) <= GETDATE()
         `);
 
       let estado = await obtenerEstadoVivo(pool, req.params.auctionId);
 
-      // Auto-close the item if its timer has expired
-      if (estado && estado.segundosRestantes <= 0) {
+      // Auto-close the item ONLY when its bidding window has expired.
+      // En fase "previa" (cuenta hasta el inicio) o "esperando_oferta"
+      // (sin ofertas, segundosRestantes = null) NO se debe cerrar el item.
+      if (
+        estado &&
+        estado.fase === "en_puja" &&
+        estado.segundosRestantes !== null &&
+        estado.segundosRestantes <= 0
+      ) {
         await cerrarItemAutomatico(pool, estado.itemActual.itemId, req.params.auctionId);
         // Re-fetch so the SSE sends the next unsold item (or null if auction is over)
         estado = await obtenerEstadoVivo(pool, req.params.auctionId);
       }
 
       if (!estado) {
-        // No more items — check actual auction state
+        // No items found — check if auction hasn't started yet or is truly finished
         const auctionCheck = await pool
           .request()
           .input("auctionId", sql.Int, req.params.auctionId)
-          .query("SELECT estado FROM Auctions WHERE identificador = @auctionId");
-        const estadoSubasta = auctionCheck.recordset[0]?.estado || "cerrada";
-        res.write("event: live-state\n");
-        res.write(`data: ${JSON.stringify({ finalizada: true, estado: estadoSubasta, subastaId: Number(req.params.auctionId) })}\n\n`);
+          .query(`
+            SELECT estado, fecha, hora,
+                   CONVERT(varchar(10), fecha, 23) AS fechaInicioStr,
+                   CONVERT(varchar(5),  hora, 108) AS horaInicioStr
+            FROM Auctions
+            WHERE identificador = @auctionId
+          `);
+
+        if (!auctionCheck.recordset.length) {
+          res.write("event: live-state\n");
+          res.write(`data: ${JSON.stringify({ error: "Subasta no encontrada", subastaId: Number(req.params.auctionId) })}\n\n`);
+          return;
+        }
+
+        const subasta = auctionCheck.recordset[0];
+        const fechaInicio = new Date(subasta.fecha + ' ' + subasta.hora);
+        const ahora = new Date();
+
+        // If auction hasn't started yet, send "pending" instead of "finalizada"
+        if (subasta.estado === 'programada' && fechaInicio > ahora) {
+          res.write("event: live-state\n");
+          res.write(`data: ${JSON.stringify({
+            pendiente: true,
+            estado: "programada",
+            subastaId: Number(req.params.auctionId),
+            proximoInicio: fechaInicio.toISOString(),
+            fechaInicio: subasta.fechaInicioStr,
+            horaInicio: subasta.horaInicioStr
+          })}\n\n`);
+        } else {
+          // Auction has truly ended
+          res.write("event: live-state\n");
+          res.write(`data: ${JSON.stringify({
+            finalizada: true,
+            estado: subasta.estado,
+            subastaId: Number(req.params.auctionId)
+          })}\n\n`);
+        }
       } else {
         res.write("event: live-state\n");
         res.write(`data: ${JSON.stringify(estado)}\n\n`);

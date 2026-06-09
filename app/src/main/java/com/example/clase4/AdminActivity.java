@@ -59,6 +59,8 @@ public class AdminActivity extends AppCompatActivity {
     private Spinner spAdminCategoria;
     private String token;
 
+    private static final int REQ_REVISAR_USUARIO = 101;
+
     private final ExecutorService executor = Executors.newSingleThreadExecutor();
     private final Handler mainHandler = new Handler(Looper.getMainLooper());
 
@@ -207,9 +209,31 @@ public class AdminActivity extends AppCompatActivity {
 
         card.addView(titulo);
         card.addView(detalle);
-        card.setOnClickListener(v -> seleccionarUsuarioPendiente(usuario));
+        card.setOnClickListener(v -> abrirRevisionUsuario(usuario));
 
         return card;
+    }
+
+    private void abrirRevisionUsuario(JSONObject usuario) {
+        Intent intent = new Intent(AdminActivity.this, UserReviewActivity.class);
+        intent.putExtra("userId", usuario.optInt("id", 0));
+        intent.putExtra("documento", usuario.optString("documento", ""));
+        intent.putExtra("nombre", usuario.optString("nombre", ""));
+        intent.putExtra("apellido", usuario.optString("apellido", ""));
+        intent.putExtra("email", usuario.optString("email", ""));
+        intent.putExtra("direccion", usuario.optString("direccion", ""));
+        intent.putExtra("categoria", usuario.optString("categoria", ""));
+        intent.putExtra("admitido", usuario.optString("admitido", ""));
+        startActivityForResult(intent, REQ_REVISAR_USUARIO);
+    }
+
+    @Override
+    protected void onActivityResult(int requestCode, int resultCode, Intent data) {
+        super.onActivityResult(requestCode, resultCode, data);
+        if (requestCode == REQ_REVISAR_USUARIO && resultCode == RESULT_OK) {
+            // El usuario fue aprobado o rechazado en la pantalla de revisión
+            cargarPendientes();
+        }
     }
 
     private void seleccionarUsuarioPendiente(JSONObject usuario) {
