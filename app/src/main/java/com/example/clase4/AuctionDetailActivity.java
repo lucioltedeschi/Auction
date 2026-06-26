@@ -23,8 +23,10 @@ import org.json.JSONObject;
 import java.io.BufferedReader;
 import java.io.InputStream;
 import java.io.InputStreamReader;
+import java.io.OutputStream;
 import java.net.HttpURLConnection;
 import java.net.URL;
+import java.nio.charset.StandardCharsets;
 import java.util.HashSet;
 import java.util.Set;
 import java.util.concurrent.ExecutorService;
@@ -50,6 +52,7 @@ public class AuctionDetailActivity extends AppCompatActivity {
     private boolean infoExpanded = false;
 
     private int auctionId;
+    private int userId;
     private boolean puedePujar;
     private String categoriaSubasta;
     private String token;
@@ -115,7 +118,7 @@ public class AuctionDetailActivity extends AppCompatActivity {
         contenedorCatalogo = findViewById(R.id.contenedorCatalogo);
         scrollViewAuction  = findViewById(R.id.scrollViewAuction);
 
-        // Tap en live panel → scroll al item activo en el catálogo
+        // Tap en live panel: scroll al item activo en el catalogo
         View livePanel = findViewById(R.id.livePanel);
         if (livePanel != null) {
             livePanel.setOnClickListener(v -> scrollToItemActivo());
@@ -138,7 +141,8 @@ public class AuctionDetailActivity extends AppCompatActivity {
         findViewById(R.id.collapseHeader).setOnClickListener(v -> toggleCollapseInfo());
 
         SharedPreferences prefs2 = getSharedPreferences("sesion", MODE_PRIVATE);
-        int userId = prefs2.getInt("userId", 0);
+        userId = prefs2.getInt("userId", 0);
+        registrarConexionActiva();
         cargarTopBarData(userId);
 
         cargarDetalleSubasta();
@@ -152,6 +156,7 @@ public class AuctionDetailActivity extends AppCompatActivity {
         escuchandoEventos = false;
         countdownHandler.removeCallbacks(countdownRunnable);
         if (conexionEventos != null) conexionEventos.disconnect();
+        liberarConexionActiva();
         super.onDestroy();
     }
 
@@ -160,6 +165,69 @@ public class AuctionDetailActivity extends AppCompatActivity {
         super.onResume();
         // Reload catalog when coming back from bidding (bids may have changed)
         cargarCatalogo();
+    }
+
+    private void registrarConexionActiva() {
+        if (userId <= 0 || auctionId <= 0) return;
+        executor.execute(() -> {
+            HttpURLConnection connection = null;
+            try {
+                URL url = new URL(ApiConfig.BASE_URL + "/api/clients/" + userId + "/active-auction");
+                connection = (HttpURLConnection) url.openConnection();
+                connection.setRequestMethod("POST");
+                connection.setRequestProperty("Content-Type", "application/json; charset=UTF-8");
+                connection.setRequestProperty("Accept", "application/json");
+                connection.setRequestProperty("Authorization", "Bearer " + token);
+                connection.setDoOutput(true);
+
+                JSONObject body = new JSONObject();
+                body.put("auctionId", auctionId);
+                try (OutputStream os = connection.getOutputStream()) {
+                    os.write(body.toString().getBytes(StandardCharsets.UTF_8));
+                }
+
+                int statusCode = connection.getResponseCode();
+                if (statusCode >= 200 && statusCode < 300) return;
+
+                JSONObject json = new JSONObject(leerRespuesta(connection.getErrorStream()));
+                String error = json.optString("error", "No se pudo ingresar a la subasta.");
+                mainHandler.post(() -> new android.app.AlertDialog.Builder(this)
+                        .setTitle("Subasta activa")
+                        .setMessage(error)
+                        .setPositiveButton("Entendido", (d, w) -> finish())
+                        .show());
+            } catch (Exception e) {
+                mainHandler.post(() -> txtMensajeDetalle.setText("No se pudo registrar la conexion activa."));
+            } finally {
+                if (connection != null) connection.disconnect();
+            }
+        });
+    }
+
+    private void liberarConexionActiva() {
+        if (userId <= 0 || auctionId <= 0) return;
+        executor.execute(() -> {
+            HttpURLConnection connection = null;
+            try {
+                URL url = new URL(ApiConfig.BASE_URL + "/api/clients/" + userId + "/active-auction/release");
+                connection = (HttpURLConnection) url.openConnection();
+                connection.setRequestMethod("POST");
+                connection.setRequestProperty("Content-Type", "application/json; charset=UTF-8");
+                connection.setRequestProperty("Accept", "application/json");
+                connection.setRequestProperty("Authorization", "Bearer " + token);
+                connection.setDoOutput(true);
+
+                JSONObject body = new JSONObject();
+                body.put("auctionId", auctionId);
+                try (OutputStream os = connection.getOutputStream()) {
+                    os.write(body.toString().getBytes(StandardCharsets.UTF_8));
+                }
+                connection.getResponseCode();
+            } catch (Exception ignored) {
+            } finally {
+                if (connection != null) connection.disconnect();
+            }
+        });
     }
 
     // ── LIVE EVENTS ──────────────────────────────────────────────────────────────
@@ -458,7 +526,7 @@ public class AuctionDetailActivity extends AppCompatActivity {
             categoriaSubasta = categoria;
 
             // Single-line summary always visible in the header
-            txtDatosResumen.setText(ubicacion + "  ·  " + fecha + "  " + hora);
+            txtDatosResumen.setText(ubicacion + "  -  " + fecha + "  " + hora);
 
             // Full details in the expandable body
             txtDatosSubasta.setText(
@@ -470,7 +538,7 @@ public class AuctionDetailActivity extends AppCompatActivity {
                 "Categoría\n" + categoria + "\n\n" +
                 "Subastador\n" + subastador + "\n\n" +
                 "Capacidad\n" + capacidad + " asistentes\n\n" +
-                "Tu acceso\n" + (puedePujar ? "✓ Habilitado para pujar" : "Solo visualización")
+                "Tu acceso\n" + (puedePujar ? "Habilitado para pujar" : "Solo visualizacion")
             );
         } catch (Exception e) {
             txtDatosResumen.setText("Error cargando datos.");
@@ -576,13 +644,13 @@ public class AuctionDetailActivity extends AppCompatActivity {
 
         TextView status = new TextView(this);
         if (esItemActivo) {
-            status.setText("● EN SUBASTA AHORA · LOTE #" + itemId);
+            status.setText("EN SUBASTA AHORA - LOTE #" + itemId);
             status.setTextColor(Color.parseColor("#86EFAC")); // green
         } else if (vendido.equals("si")) {
-            status.setText("FINALIZADO · LOTE #" + itemId);
+            status.setText("FINALIZADO - LOTE #" + itemId);
             status.setTextColor(Color.parseColor("#FECACA"));
         } else {
-            status.setText("PRÓXIMO · LOTE #" + itemId);
+            status.setText("PROXIMO - LOTE #" + itemId);
             status.setTextColor(Color.WHITE);
         }
         status.setTextSize(11);
@@ -601,7 +669,7 @@ public class AuctionDetailActivity extends AppCompatActivity {
         title.setLayoutParams(titleParams);
 
         TextView subtitle = new TextView(this);
-        subtitle.setText("Pieza verificada · Autenticidad garantizada");
+        subtitle.setText("Pieza verificada - Autenticidad garantizada");
         subtitle.setTextColor(Color.parseColor("#E8EEF5"));
         subtitle.setTextSize(13);
         LinearLayout.LayoutParams subtitleParams = new LinearLayout.LayoutParams(
@@ -706,7 +774,7 @@ public class AuctionDetailActivity extends AppCompatActivity {
 
         // SEGURIDAD
         TextView security = new TextView(this);
-        security.setText("AUTENTICIDAD VERIFICADA · OPERACIÓN SEGURA");
+        security.setText("AUTENTICIDAD VERIFICADA - OPERACION SEGURA");
         security.setTextColor(Color.parseColor("#166534"));
         security.setTextSize(11);
         security.setTypeface(null, android.graphics.Typeface.BOLD);
@@ -892,12 +960,12 @@ public class AuctionDetailActivity extends AppCompatActivity {
         root.setGravity(android.view.Gravity.CENTER);
 
         android.widget.TextView icon = new android.widget.TextView(this);
-        icon.setText("🏆");
+        icon.setText("OK");
         icon.setTextSize(60);
         icon.setGravity(android.view.Gravity.CENTER);
 
         android.widget.TextView title = new android.widget.TextView(this);
-        title.setText("¡Ganaste el lote!");
+        title.setText("Ganaste el lote");
         title.setTextSize(22);
         title.setTextColor(Color.parseColor("#071827"));
         title.setTypeface(null, android.graphics.Typeface.BOLD);

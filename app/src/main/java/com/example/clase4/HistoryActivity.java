@@ -159,7 +159,7 @@ public class HistoryActivity extends AppCompatActivity {
 
         TextView chip = new TextView(this);
         if (ganador) {
-            chip.setText("🏆 GANADOR");
+            chip.setText("GANADOR");
             chip.setBackgroundResource(R.drawable.bg_button_gold);
             chip.setTextColor(Color.parseColor("#071827"));
         } else if (cerrada) {
@@ -191,9 +191,9 @@ public class HistoryActivity extends AppCompatActivity {
 
         TextView info = new TextView(this);
         info.setText(
-                "📅  " + fecha + "  ·  " + hora + "\n" +
-                "📍  " + ubicacion + "\n" +
-                "🏷  Categoría: " + capitalize(categoria) + "  ·  " + moneda
+                "Fecha: " + fecha + "  -  " + hora + "\n" +
+                "Ubicacion: " + ubicacion + "\n" +
+                "Categoria: " + capitalize(categoria) + "  -  " + moneda
         );
         info.setTextSize(13);
         info.setTextColor(textColor);
@@ -207,7 +207,7 @@ public class HistoryActivity extends AppCompatActivity {
         TextView stats = new TextView(this);
         String statsText = totalPujas + " puja" + (totalPujas != 1 ? "s" : "") + " realizadas";
         if (itemsGanados > 0)
-            statsText += "  ·  " + itemsGanados + " lote" + (itemsGanados != 1 ? "s" : "") + " ganado" + (itemsGanados != 1 ? "s" : "");
+            statsText += "  -  " + itemsGanados + " lote" + (itemsGanados != 1 ? "s" : "") + " ganado" + (itemsGanados != 1 ? "s" : "");
         stats.setText(statsText);
         stats.setTextSize(12);
         stats.setTextColor(ganador ? Color.parseColor("#A8872F") : Color.parseColor("#64748B"));

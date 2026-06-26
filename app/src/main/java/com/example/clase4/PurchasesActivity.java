@@ -190,10 +190,10 @@ public class PurchasesActivity extends AppCompatActivity {
         // Deadline
         TextView txtFecha = new TextView(this);
         if (!"pagado".equals(estadoPago)) {
-            txtFecha.setText("⏰  Pagar antes del " + fechaLimite);
+            txtFecha.setText("Pagar antes del " + fechaLimite);
             txtFecha.setTextColor(Color.parseColor("#A8872F"));
         } else {
-            txtFecha.setText("✓  Pago acreditado");
+            txtFecha.setText("Pago acreditado");
             txtFecha.setTextColor(Color.parseColor("#166534"));
         }
         txtFecha.setTextSize(12);

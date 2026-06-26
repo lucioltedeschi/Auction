@@ -24,7 +24,6 @@ import java.net.HttpURLConnection;
 import java.net.URL;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
-import android.content.Intent;
 
 public class HomeActivity extends AppCompatActivity {
 
@@ -88,8 +87,9 @@ public class HomeActivity extends AppCompatActivity {
         String categoria = preferences.getString("categoria", "");
         boolean esAdmin = preferences.getBoolean("esAdmin", false);
 
-        txtBienvenida.setText("Bienvenido, " + nombre + " " + apellido);
-        txtCategoria.setText("Categoría: " + categoria);
+        String nombreCompleto = (nombre + " " + apellido).trim();
+        txtBienvenida.setText(nombreCompleto.isEmpty() ? "Bienvenido" : "Bienvenido, " + nombreCompleto);
+        txtCategoria.setText("Categoria: " + categoria);
 
         View tileAdmin = findViewById(R.id.btnAdmin);
         tileAdmin.setVisibility(esAdmin ? View.VISIBLE : View.GONE);
@@ -221,7 +221,7 @@ public class HomeActivity extends AppCompatActivity {
 
             if (total > 0) {
                 Button btnVerTodas = new Button(this);
-                btnVerTodas.setText(total > 3 ? "VER TODAS (" + total + " SUBASTAS) →" : "VER TODAS LAS SUBASTAS →");
+                btnVerTodas.setText(total > 3 ? "VER TODAS (" + total + " SUBASTAS)" : "VER TODAS LAS SUBASTAS");
                 btnVerTodas.setTextColor(Color.parseColor("#071827"));
                 btnVerTodas.setTextSize(12);
                 btnVerTodas.setTypeface(null, android.graphics.Typeface.BOLD);
@@ -275,14 +275,14 @@ public class HomeActivity extends AppCompatActivity {
         visual.setLayoutParams(visualParams);
 
         TextView chipLive = new TextView(this);
-        chipLive.setText(estado.toUpperCase() + "  ·  SUBASTA #" + id);
+        chipLive.setText(estado.toUpperCase() + "  -  SUBASTA #" + id);
         chipLive.setTextColor(Color.WHITE);
         chipLive.setTextSize(11);
         chipLive.setTypeface(null, android.graphics.Typeface.BOLD);
         chipLive.setLetterSpacing(0.08f);
 
         TextView titleVisual = new TextView(this);
-        titleVisual.setText("Evento de subasta verificado");
+        titleVisual.setText("Subasta verificada");
         titleVisual.setTextColor(Color.WHITE);
         titleVisual.setTextSize(23);
         titleVisual.setTypeface(null, android.graphics.Typeface.BOLD);
@@ -312,7 +312,7 @@ public class HomeActivity extends AppCompatActivity {
 
         // CHIP CATEGORÍA
         TextView chipCategoria = new TextView(this);
-        chipCategoria.setText(categoria.toUpperCase() + "  ·  " + moneda.toUpperCase());
+        chipCategoria.setText(categoria.toUpperCase() + "  -  " + moneda.toUpperCase());
         chipCategoria.setTextColor(Color.parseColor("#071827"));
         chipCategoria.setTextSize(11);
         chipCategoria.setTypeface(null, android.graphics.Typeface.BOLD);
@@ -329,7 +329,7 @@ public class HomeActivity extends AppCompatActivity {
 
         // DESCRIPCIÓN EDITORIAL
         TextView descripcion = new TextView(this);
-        descripcion.setText("Evento de subasta verificado con activos seleccionados por especialistas. Accedé al catálogo para revisar lotes, precios base y disponibilidad de puja.");
+        descripcion.setText("Evento verificado con lotes seleccionados por especialistas. En el catalogo ves precios base, ofertas y disponibilidad de puja.");
         descripcion.setTextColor(Color.parseColor("#475569"));
         descripcion.setTextSize(14);
         descripcion.setLineSpacing(dp(3), 1.0f);
@@ -353,7 +353,7 @@ public class HomeActivity extends AppCompatActivity {
         metricsRow.setLayoutParams(metricsRowParams);
 
         TextView dateBox = new TextView(this);
-        dateBox.setText("DATE\n" + fecha);
+        dateBox.setText("FECHA\n" + fecha);
         dateBox.setTextColor(Color.parseColor("#071827"));
         dateBox.setTextSize(12);
         dateBox.setTypeface(null, android.graphics.Typeface.BOLD);
@@ -369,7 +369,7 @@ public class HomeActivity extends AppCompatActivity {
         dateBox.setLayoutParams(dateParams);
 
         TextView timeBox = new TextView(this);
-        timeBox.setText("START\n" + hora);
+        timeBox.setText("INICIO\n" + hora);
         timeBox.setTextColor(Color.parseColor("#071827"));
         timeBox.setTextSize(12);
         timeBox.setTypeface(null, android.graphics.Typeface.BOLD);
@@ -395,7 +395,10 @@ public class HomeActivity extends AppCompatActivity {
             acceso.setTextColor(Color.parseColor("#166534"));
             acceso.setBackgroundResource(R.drawable.bg_success_chip);
         } else {
-            acceso.setText("SOLO VISUALIZACIÓN · " + motivoBloqueo);
+            String motivo = motivoBloqueo == null || motivoBloqueo.trim().isEmpty()
+                    ? "Revisa categoria, multas y medio de pago"
+                    : motivoBloqueo;
+            acceso.setText("SOLO VISUALIZACION - " + motivo);
             acceso.setTextColor(Color.parseColor("#991B1B"));
             acceso.setBackgroundResource(R.drawable.bg_danger_chip);
         }
@@ -413,7 +416,7 @@ public class HomeActivity extends AppCompatActivity {
         acceso.setLayoutParams(accesoParams);
 
         Button btnVerDetalle = new Button(this);
-        btnVerDetalle.setText(puedePujar ? "ENTRAR AL CATÁLOGO" : "VER CATÁLOGO");
+        btnVerDetalle.setText(puedePujar ? "ENTRAR AL CATALOGO" : "VER CATALOGO");
         btnVerDetalle.setTextColor(Color.parseColor("#071827"));
         btnVerDetalle.setTextSize(12);
         btnVerDetalle.setTypeface(null, android.graphics.Typeface.BOLD);

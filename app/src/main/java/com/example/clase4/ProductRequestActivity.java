@@ -8,6 +8,7 @@ import android.os.Handler;
 import android.os.Looper;
 import android.util.Base64;
 import android.view.View;
+import android.app.AlertDialog;
 import android.widget.Button;
 import android.widget.CheckBox;
 import android.widget.EditText;
@@ -28,8 +29,6 @@ import java.io.OutputStream;
 import java.net.HttpURLConnection;
 import java.net.URL;
 import java.nio.charset.StandardCharsets;
-import java.util.ArrayList;
-import java.util.List;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 
@@ -49,16 +48,10 @@ public class ProductRequestActivity extends AppCompatActivity {
     private CheckBox chkOrigenLicito;
     private TextView txtMensajeSolicitud;
     private TextView txtMisSolicitudes;
+    private LinearLayout contenedorMisSolicitudes;
     private Button btnEnviarSolicitud;
     private Button btnVolverSolicitud;
     private Button btnActualizarMisSolicitudes;
-
-    // Auction picker
-    private LinearLayout selectorSubastaContainer;
-    private TextView txtSubastaSeleccionada;
-    private int subastaSeleccionadaId = 0;
-    private final List<int[]> subastas = new ArrayList<>(); // {id}
-    private final List<String> subastaLabels = new ArrayList<>();
 
     private int userId;
     private String token;
@@ -76,20 +69,17 @@ public class ProductRequestActivity extends AppCompatActivity {
 
         edtDescripcionCatalogo = findViewById(R.id.edtDescripcionCatalogo);
         edtDescripcionCompleta = findViewById(R.id.edtDescripcionCompleta);
-        edtHistoria            = findViewById(R.id.edtHistoria);
-        edtArtista             = findViewById(R.id.edtArtista);
-        edtPrecioBaseSugerido  = findViewById(R.id.edtPrecioBaseSugerido);
-        chkPropiedad           = findViewById(R.id.chkPropiedad);
-        chkOrigenLicito        = findViewById(R.id.chkOrigenLicito);
-        txtMensajeSolicitud    = findViewById(R.id.txtMensajeSolicitud);
-        txtMisSolicitudes      = findViewById(R.id.txtMisSolicitudes);
-        btnEnviarSolicitud     = findViewById(R.id.btnEnviarSolicitud);
-        btnVolverSolicitud     = findViewById(R.id.btnVolverSolicitud);
+        edtHistoria = findViewById(R.id.edtHistoria);
+        edtArtista = findViewById(R.id.edtArtista);
+        edtPrecioBaseSugerido = findViewById(R.id.edtPrecioBaseSugerido);
+        chkPropiedad = findViewById(R.id.chkPropiedad);
+        chkOrigenLicito = findViewById(R.id.chkOrigenLicito);
+        txtMensajeSolicitud = findViewById(R.id.txtMensajeSolicitud);
+        txtMisSolicitudes = findViewById(R.id.txtMisSolicitudes);
+        contenedorMisSolicitudes = findViewById(R.id.contenedorMisSolicitudes);
+        btnEnviarSolicitud = findViewById(R.id.btnEnviarSolicitud);
+        btnVolverSolicitud = findViewById(R.id.btnVolverSolicitud);
         btnActualizarMisSolicitudes = findViewById(R.id.btnActualizarMisSolicitudes);
-
-        // Auction selector views (may not exist in older XML — guarded with null checks)
-        selectorSubastaContainer = findViewById(R.id.selectorSubastaContainer);
-        txtSubastaSeleccionada   = findViewById(R.id.txtSubastaSeleccionada);
 
         fotosBase64 = new String[TOTAL_FOTOS_REQUERIDAS];
         txtFotos = new TextView[]{
@@ -106,103 +96,28 @@ public class ProductRequestActivity extends AppCompatActivity {
 
         for (int i = 0; i < botonesFotos.length; i++) {
             final int indice = i;
-            if (botonesFotos[i] != null)
+            if (botonesFotos[i] != null) {
                 botonesFotos[i].setOnClickListener(v -> seleccionarFoto(indice));
+            }
         }
 
         SharedPreferences preferences = getSharedPreferences("sesion", MODE_PRIVATE);
         userId = preferences.getInt("userId", 0);
-        token  = preferences.getString("token", "");
+        token = preferences.getString("token", "");
 
         btnEnviarSolicitud.setOnClickListener(v -> validarYEnviarSolicitud());
         if (btnVolverSolicitud != null) btnVolverSolicitud.setOnClickListener(v -> finish());
-        if (btnActualizarMisSolicitudes != null)
+        if (btnActualizarMisSolicitudes != null) {
             btnActualizarMisSolicitudes.setOnClickListener(v -> cargarMisSolicitudes());
+        }
 
-        // Wire auction selector
-        if (selectorSubastaContainer != null)
-            selectorSubastaContainer.setOnClickListener(v -> mostrarPickerSubasta());
-
-        cargarSubastasDisponibles();
         cargarMisSolicitudes();
     }
 
-    // ── LOAD AVAILABLE AUCTIONS ───────────────────────────────────────────────
-
-    private void cargarSubastasDisponibles() {
-        executor.execute(() -> {
-            HttpURLConnection c = null;
-            try {
-                URL url = new URL(ApiConfig.BASE_URL + "/api/auctions");
-                c = (HttpURLConnection) url.openConnection();
-                c.setRequestMethod("GET");
-                c.setRequestProperty("Accept", "application/json");
-                c.setRequestProperty("Authorization", "Bearer " + token);
-                if (c.getResponseCode() == 200) {
-                    JSONArray list = new JSONArray(leerRespuesta(c.getInputStream()));
-                    subastas.clear();
-                    subastaLabels.clear();
-                    for (int i = 0; i < list.length(); i++) {
-                        JSONObject a = list.getJSONObject(i);
-                        String estado = a.optString("estado", "");
-                        if (!"abierta".equals(estado) && !"programada".equals(estado)) continue;
-                        int id = a.optInt("id", 0);
-                        String ubicacion = a.optString("ubicacion", "Subasta");
-                        String fecha = a.optString("fecha", "");
-                        subastas.add(new int[]{id});
-                        subastaLabels.add("#" + id + " – " + ubicacion + (fecha.length() >= 10 ? "  " + fecha.substring(0, 10) : ""));
-                    }
-                    mainHandler.post(this::actualizarLabelSubasta);
-                }
-            } catch (Exception ignored) {
-            } finally {
-                if (c != null) c.disconnect();
-            }
-        });
-    }
-
-    private void actualizarLabelSubasta() {
-        if (txtSubastaSeleccionada == null) return;
-        if (subastaSeleccionadaId == 0) {
-            txtSubastaSeleccionada.setText(subastas.isEmpty()
-                    ? "No hay subastas disponibles"
-                    : "Tocá para elegir subasta (opcional)");
-        } else {
-            for (int i = 0; i < subastas.size(); i++) {
-                if (subastas.get(i)[0] == subastaSeleccionadaId) {
-                    txtSubastaSeleccionada.setText(subastaLabels.get(i));
-                    return;
-                }
-            }
-        }
-    }
-
-    private void mostrarPickerSubasta() {
-        if (subastas.isEmpty()) return;
-        String[] opciones = subastaLabels.toArray(new String[0]);
-        // Agregar opción "Ninguna" al inicio
-        String[] opcionesConNinguna = new String[opciones.length + 1];
-        opcionesConNinguna[0] = "Sin preferencia";
-        System.arraycopy(opciones, 0, opcionesConNinguna, 1, opciones.length);
-
-        new android.app.AlertDialog.Builder(this)
-                .setTitle("Elegir subasta destino")
-                .setItems(opcionesConNinguna, (d, which) -> {
-                    if (which == 0) {
-                        subastaSeleccionadaId = 0;
-                    } else {
-                        subastaSeleccionadaId = subastas.get(which - 1)[0];
-                    }
-                    actualizarLabelSubasta();
-                })
-                .setNegativeButton("Cancelar", null)
-                .show();
-    }
-
-    // ── LOAD MY REQUESTS ──────────────────────────────────────────────────────
-
     private void cargarMisSolicitudes() {
         txtMisSolicitudes.setText("Cargando mis consignaciones...");
+        if (contenedorMisSolicitudes != null) contenedorMisSolicitudes.removeAllViews();
+
         executor.execute(() -> {
             HttpURLConnection connection = null;
             try {
@@ -225,7 +140,7 @@ public class ProductRequestActivity extends AppCompatActivity {
                     mainHandler.post(() -> txtMisSolicitudes.setText(err.optString("error", "Error")));
                 }
             } catch (Exception e) {
-                mainHandler.post(() -> txtMisSolicitudes.setText("Sin conexión"));
+                mainHandler.post(() -> txtMisSolicitudes.setText("Sin conexion"));
             } finally {
                 if (connection != null) connection.disconnect();
             }
@@ -233,35 +148,97 @@ public class ProductRequestActivity extends AppCompatActivity {
     }
 
     private void mostrarMisSolicitudes(JSONArray solicitudes) {
+        if (contenedorMisSolicitudes != null) contenedorMisSolicitudes.removeAllViews();
+
         if (solicitudes.length() == 0) {
-            txtMisSolicitudes.setText("Todavía no enviaste consignaciones.");
+            txtMisSolicitudes.setText("Todavia no enviaste consignaciones.");
             return;
         }
+
+        txtMisSolicitudes.setText("");
         try {
-            StringBuilder builder = new StringBuilder();
             for (int i = 0; i < solicitudes.length(); i++) {
                 JSONObject item = solicitudes.getJSONObject(i);
-                builder.append("#").append(item.optInt("id", 0))
-                        .append(" – ").append(item.optString("descripcionCatalogo", "-"))
-                        .append("\nEstado: ").append(item.optString("estadoAprobacion", "-"));
-
-                int subastaId = item.optInt("subastaPreferida", 0);
-                if (subastaId > 0)
-                    builder.append("  ·  Subasta destino: #").append(subastaId);
-
-                String motivo = item.optString("motivoRechazo", "");
-                if (!motivo.isEmpty() && !"null".equals(motivo))
-                    builder.append("\nMotivo rechazo: ").append(motivo);
-
-                builder.append("\n\n");
+                contenedorMisSolicitudes.addView(crearCardSolicitud(item));
             }
-            txtMisSolicitudes.setText(builder.toString());
         } catch (Exception e) {
             txtMisSolicitudes.setText("Error mostrando consignaciones.");
         }
     }
 
-    // ── PHOTO PICKER ──────────────────────────────────────────────────────────
+    private View crearCardSolicitud(JSONObject item) {
+        LinearLayout card = new LinearLayout(this);
+        card.setOrientation(LinearLayout.VERTICAL);
+        card.setPadding(dp(14), dp(12), dp(14), dp(12));
+        card.setBackgroundResource(R.drawable.bg_metric_box);
+
+        LinearLayout.LayoutParams cardParams = new LinearLayout.LayoutParams(
+                LinearLayout.LayoutParams.MATCH_PARENT,
+                LinearLayout.LayoutParams.WRAP_CONTENT
+        );
+        cardParams.setMargins(0, 0, 0, dp(10));
+        card.setLayoutParams(cardParams);
+
+        int id = item.optInt("id", 0);
+        String estado = item.optString("estadoAprobacion", "");
+        String estadoTexto = item.optString("estadoDescripcion", estadoLegible(estado));
+
+        card.addView(crearTexto("#" + id + " - " + item.optString("descripcionCatalogo", "-"), "#071827", 16, true));
+        card.addView(crearTexto("Estado: " + estadoTexto, "#475569", 13, false));
+        card.addView(crearTexto(descripcionEstado(estado), "#64748B", 12, false));
+
+        double sugerido = item.optDouble("precioBaseSugerido", 0);
+        if (sugerido > 0) {
+            card.addView(crearTexto("Precio sugerido por vos: $" + String.format("%.2f", sugerido), "#0F766E", 13, true));
+        }
+
+        double precio = item.optDouble("precioBasePropuesto", 0);
+        double comision = item.optDouble("comisionPropuesta", 0);
+        String condiciones = item.optString("condicionesPropuestas", "");
+        if (precio > 0 || comision > 0 || (!condiciones.isEmpty() && !"null".equals(condiciones))) {
+            String detalle = "Condiciones de la empresa";
+            if (precio > 0) detalle += "\nPrecio base: $" + String.format("%.2f", precio);
+            if (comision > 0) detalle += "\nComision: $" + String.format("%.2f", comision);
+            if (!condiciones.isEmpty() && !"null".equals(condiciones)) detalle += "\n" + condiciones;
+            card.addView(crearTexto(detalle, "#334155", 13, false));
+        }
+
+        String motivo = item.optString("motivoRechazo", "");
+        if (!motivo.isEmpty() && !"null".equals(motivo)) {
+            card.addView(crearTexto("Motivo: " + motivo, "#991B1B", 13, false));
+        }
+
+        String deposito = item.optString("ubicacionDeposito", "");
+        String seguro = item.optString("seguro", "");
+        if ((!deposito.isEmpty() && !"null".equals(deposito)) || (!seguro.isEmpty() && !"null".equals(seguro))) {
+            String custodia = "Custodia del bien";
+            if (!deposito.isEmpty() && !"null".equals(deposito)) custodia += "\nDeposito: " + deposito;
+            if (!seguro.isEmpty() && !"null".equals(seguro)) custodia += "\nSeguro: " + seguro;
+            card.addView(crearTexto(custodia, "#475569", 13, false));
+        }
+
+        if ("propuesta_enviada".equals(estado)) {
+            LinearLayout acciones = new LinearLayout(this);
+            acciones.setOrientation(LinearLayout.HORIZONTAL);
+            LinearLayout.LayoutParams accionesParams = new LinearLayout.LayoutParams(
+                    LinearLayout.LayoutParams.MATCH_PARENT,
+                    LinearLayout.LayoutParams.WRAP_CONTENT
+            );
+            accionesParams.setMargins(0, dp(10), 0, 0);
+            acciones.setLayoutParams(accionesParams);
+
+            Button aceptar = crearBotonRespuesta("ACEPTAR", true);
+            Button rechazar = crearBotonRespuesta("RECHAZAR", false);
+            aceptar.setOnClickListener(v -> confirmarRespuestaPropuesta(id, "aceptar"));
+            rechazar.setOnClickListener(v -> confirmarRespuestaPropuesta(id, "rechazar"));
+
+            acciones.addView(aceptar);
+            acciones.addView(rechazar);
+            card.addView(acciones);
+        }
+
+        return card;
+    }
 
     private void seleccionarFoto(int indice) {
         Intent intent = new Intent(Intent.ACTION_OPEN_DOCUMENT);
@@ -278,7 +255,7 @@ public class ProductRequestActivity extends AppCompatActivity {
         if (indice < 0 || indice >= TOTAL_FOTOS_REQUERIDAS) return;
         try {
             fotosBase64[indice] = leerImagenBase64(data.getData());
-            txtFotos[indice].setText("✓ Foto " + (indice + 1) + " cargada");
+            txtFotos[indice].setText("Foto " + (indice + 1) + " cargada");
         } catch (Exception e) {
             txtMensajeSolicitud.setText("No se pudo leer la foto.");
         }
@@ -294,31 +271,29 @@ public class ProductRequestActivity extends AppCompatActivity {
         return Base64.encodeToString(out.toByteArray(), Base64.NO_WRAP);
     }
 
-    // ── VALIDATE & SEND ───────────────────────────────────────────────────────
-
     private void validarYEnviarSolicitud() {
         String descripcionCatalogo = edtDescripcionCatalogo.getText().toString().trim();
         String descripcionCompleta = edtDescripcionCompleta.getText().toString().trim();
-        String historia            = edtHistoria.getText().toString().trim();
-        String artista             = edtArtista.getText().toString().trim();
-        String precioBaseSugerido  = edtPrecioBaseSugerido.getText().toString().trim();
+        String historia = edtHistoria.getText().toString().trim();
+        String artista = edtArtista.getText().toString().trim();
+        String precioBaseSugerido = edtPrecioBaseSugerido.getText().toString().trim();
         JSONArray fotos = new JSONArray();
 
-        if (descripcionCatalogo.isEmpty()) { txtMensajeSolicitud.setText("Ingresá un título corto para el catálogo."); return; }
-        if (descripcionCompleta.isEmpty())  { txtMensajeSolicitud.setText("Ingresá una descripción completa."); return; }
+        if (descripcionCatalogo.isEmpty()) { mostrarErrorSolicitud("Ingresa un titulo corto para el catalogo."); return; }
+        if (descripcionCompleta.isEmpty()) { mostrarErrorSolicitud("Ingresa una descripcion completa."); return; }
 
         for (int i = 0; i < TOTAL_FOTOS_REQUERIDAS; i++) {
-            if (fotosBase64[i] == null) { txtMensajeSolicitud.setText("Seleccioná las 6 fotos mínimas del bien."); return; }
+            if (fotosBase64[i] == null) { mostrarErrorSolicitud("Selecciona las 6 fotos minimas del bien."); return; }
             fotos.put(fotosBase64[i]);
         }
 
         if (!precioBaseSugerido.isEmpty()) {
             try { Double.parseDouble(precioBaseSugerido); }
-            catch (Exception e) { txtMensajeSolicitud.setText("El precio base sugerido debe ser numérico."); return; }
+            catch (Exception e) { mostrarErrorSolicitud("El precio base sugerido debe ser numerico."); return; }
         }
 
-        if (!chkPropiedad.isChecked())   { txtMensajeSolicitud.setText("Debés declarar que el bien te pertenece."); return; }
-        if (!chkOrigenLicito.isChecked()){ txtMensajeSolicitud.setText("Debés declarar el origen lícito del bien."); return; }
+        if (!chkPropiedad.isChecked()) { mostrarErrorSolicitud("Debes declarar que el bien te pertenece."); return; }
+        if (!chkOrigenLicito.isChecked()) { mostrarErrorSolicitud("Debes declarar el origen licito del bien."); return; }
 
         txtMensajeSolicitud.setText("");
         btnEnviarSolicitud.setEnabled(false);
@@ -350,7 +325,6 @@ public class ProductRequestActivity extends AppCompatActivity {
                 body.put("fotos", fotos);
                 body.put("declaracionPropiedad", "si");
                 body.put("origenLicito", "si");
-                if (subastaSeleccionadaId > 0) body.put("subastaId", subastaSeleccionadaId);
 
                 try (OutputStream os = connection.getOutputStream()) {
                     os.write(body.toString().getBytes(StandardCharsets.UTF_8));
@@ -368,6 +342,7 @@ public class ProductRequestActivity extends AppCompatActivity {
                         btnEnviarSolicitud.setText("Enviar solicitud");
                         txtMensajeSolicitud.setTextColor(android.graphics.Color.parseColor("#16A34A"));
                         txtMensajeSolicitud.setText(mensaje);
+                        FeedbackDialog.ok(ProductRequestActivity.this, mensaje + "\n\nLa empresa revisara el bien y te enviara condiciones antes de incluirlo en una subasta.");
                         limpiarFormulario();
                         cargarMisSolicitudes();
                     });
@@ -378,6 +353,7 @@ public class ProductRequestActivity extends AppCompatActivity {
                         btnEnviarSolicitud.setText("Enviar solicitud");
                         txtMensajeSolicitud.setTextColor(android.graphics.Color.parseColor("#DC2626"));
                         txtMensajeSolicitud.setText(error);
+                        FeedbackDialog.error(ProductRequestActivity.this, error);
                     });
                 }
             } catch (Exception e) {
@@ -385,12 +361,77 @@ public class ProductRequestActivity extends AppCompatActivity {
                     btnEnviarSolicitud.setEnabled(true);
                     btnEnviarSolicitud.setText("Enviar solicitud");
                     txtMensajeSolicitud.setTextColor(android.graphics.Color.parseColor("#DC2626"));
-                    txtMensajeSolicitud.setText("Sin conexión con el servidor.");
+                    txtMensajeSolicitud.setText("Sin conexion con el servidor.");
+                    FeedbackDialog.error(ProductRequestActivity.this, "Sin conexion con el servidor.");
                 });
             } finally {
                 if (connection != null) connection.disconnect();
             }
         });
+    }
+
+    private void confirmarRespuestaPropuesta(int productId, String decision) {
+        boolean acepta = "aceptar".equals(decision);
+        new AlertDialog.Builder(this)
+                .setTitle(acepta ? "Aceptar condiciones" : "Rechazar condiciones")
+                .setMessage(acepta
+                        ? "Si aceptas, la empresa podra incluir el bien en una subasta futura."
+                        : "Si rechazas, el bien no avanzara a catalogo/subasta y quedara marcado como rechazado por usuario.")
+                .setPositiveButton(acepta ? "ACEPTAR" : "RECHAZAR", (d, w) -> responderPropuesta(productId, decision))
+                .setNegativeButton("Cancelar", null)
+                .show();
+    }
+
+    private void responderPropuesta(int productId, String decision) {
+        txtMensajeSolicitud.setText("");
+        executor.execute(() -> {
+            HttpURLConnection connection = null;
+            try {
+                URL url = new URL(ApiConfig.BASE_URL + "/api/products/" + productId + "/proposal-response");
+                connection = (HttpURLConnection) url.openConnection();
+                connection.setRequestMethod("POST");
+                connection.setRequestProperty("Content-Type", "application/json; charset=UTF-8");
+                connection.setRequestProperty("Accept", "application/json");
+                connection.setRequestProperty("Authorization", "Bearer " + token);
+                connection.setDoOutput(true);
+
+                JSONObject body = new JSONObject();
+                body.put("duenio", userId);
+                body.put("decision", decision);
+
+                try (OutputStream os = connection.getOutputStream()) {
+                    os.write(body.toString().getBytes(StandardCharsets.UTF_8));
+                }
+
+                int statusCode = connection.getResponseCode();
+                InputStream is = statusCode >= 200 && statusCode < 300
+                        ? connection.getInputStream() : connection.getErrorStream();
+                JSONObject json = new JSONObject(leerRespuesta(is));
+
+                mainHandler.post(() -> {
+                    boolean ok = statusCode >= 200 && statusCode < 300;
+                    String mensaje = json.optString(ok ? "mensaje" : "error", "Operacion procesada");
+                    txtMensajeSolicitud.setTextColor(android.graphics.Color.parseColor(ok ? "#16A34A" : "#DC2626"));
+                    txtMensajeSolicitud.setText(mensaje);
+                    if (ok) FeedbackDialog.ok(ProductRequestActivity.this, mensaje);
+                    else FeedbackDialog.error(ProductRequestActivity.this, mensaje);
+                    cargarMisSolicitudes();
+                });
+            } catch (Exception e) {
+                mainHandler.post(() -> {
+                    txtMensajeSolicitud.setText("Sin conexion con el servidor.");
+                    FeedbackDialog.error(ProductRequestActivity.this, "Sin conexion con el servidor.");
+                });
+            } finally {
+                if (connection != null) connection.disconnect();
+            }
+        });
+    }
+
+    private void mostrarErrorSolicitud(String mensaje) {
+        txtMensajeSolicitud.setTextColor(android.graphics.Color.parseColor("#DC2626"));
+        txtMensajeSolicitud.setText(mensaje);
+        FeedbackDialog.error(this, mensaje);
     }
 
     private void limpiarFormulario() {
@@ -403,8 +444,65 @@ public class ProductRequestActivity extends AppCompatActivity {
         for (int i = 0; i < txtFotos.length; i++) txtFotos[i].setText("Foto " + (i + 1) + " pendiente");
         chkPropiedad.setChecked(false);
         chkOrigenLicito.setChecked(false);
-        subastaSeleccionadaId = 0;
-        actualizarLabelSubasta();
+    }
+
+    private TextView crearTexto(String text, String color, int size, boolean bold) {
+        TextView view = new TextView(this);
+        view.setText(text);
+        view.setTextColor(android.graphics.Color.parseColor(color));
+        view.setTextSize(size);
+        view.setLineSpacing(dp(3), 1.0f);
+        if (bold) view.setTypeface(null, android.graphics.Typeface.BOLD);
+        return view;
+    }
+
+    private Button crearBotonRespuesta(String text, boolean primary) {
+        Button button = new Button(this);
+        button.setText(text);
+        button.setTextSize(11);
+        button.setTextColor(android.graphics.Color.parseColor(primary ? "#071827" : "#991B1B"));
+        button.setBackgroundResource(primary ? R.drawable.bg_button_gold : R.drawable.bg_button_outline);
+        LinearLayout.LayoutParams params = new LinearLayout.LayoutParams(0, dp(46), 1);
+        params.setMargins(primary ? 0 : dp(6), 0, primary ? dp(6) : 0, 0);
+        button.setLayoutParams(params);
+        return button;
+    }
+
+    private String estadoLegible(String estado) {
+        if ("pendiente".equals(estado) || "pendiente_inspeccion".equals(estado)) return "Pendiente de inspeccion";
+        if ("propuesta_enviada".equals(estado)) return "Propuesta enviada";
+        if ("aceptado_usuario".equals(estado)) return "Aceptado por usuario";
+        if ("rechazado_usuario".equals(estado)) return "Rechazado por usuario";
+        if ("incluido_subasta".equals(estado)) return "Incluido en subasta";
+        if ("rechazado".equals(estado)) return "Rechazado por empresa";
+        if ("aceptado".equals(estado)) return "Aceptado por empresa";
+        return estado;
+    }
+
+    private String descripcionEstado(String estado) {
+        if ("pendiente".equals(estado) || "pendiente_inspeccion".equals(estado)) {
+            return "La empresa esta revisando fotos, origen y condiciones del bien.";
+        }
+        if ("propuesta_enviada".equals(estado)) {
+            return "Revisa precio base y comision. El bien solo avanza si aceptas.";
+        }
+        if ("aceptado_usuario".equals(estado)) {
+            return "Aceptaste las condiciones. El admin ya puede asignarlo a una subasta.";
+        }
+        if ("rechazado_usuario".equals(estado)) {
+            return "Rechazaste las condiciones. El bien no se incluira en catalogo.";
+        }
+        if ("incluido_subasta".equals(estado)) {
+            return "El bien ya fue incluido en una subasta.";
+        }
+        if ("rechazado".equals(estado)) {
+            return "La empresa rechazo el bien. Revisa el motivo informado.";
+        }
+        return "Seguimiento de consignacion.";
+    }
+
+    private int dp(int value) {
+        return (int) (value * getResources().getDisplayMetrics().density);
     }
 
     private String leerRespuesta(InputStream is) throws Exception {

@@ -153,7 +153,10 @@
                     <TextView
                         android:layout_width="wrap_content"
                         android:layout_height="wrap_content"
-                        android:text="💳"
+                        android:background="@drawable/bg_icon_circle"
+                        android:gravity="center"
+                        android:text="MP"
+                        android:textColor="#FFFFFF"
                         android:textSize="20sp" />
 
                     <TextView
@@ -183,7 +186,10 @@
                     <TextView
                         android:layout_width="wrap_content"
                         android:layout_height="wrap_content"
-                        android:text="📦"
+                        android:background="@drawable/bg_icon_circle"
+                        android:gravity="center"
+                        android:text="CO"
+                        android:textColor="#FFFFFF"
                         android:textSize="20sp" />
 
                     <TextView
@@ -212,7 +218,10 @@
                     <TextView
                         android:layout_width="wrap_content"
                         android:layout_height="wrap_content"
-                        android:text="🛍️"
+                        android:background="@drawable/bg_icon_circle"
+                        android:gravity="center"
+                        android:text="CP"
+                        android:textColor="#FFFFFF"
                         android:textSize="20sp" />
 
                     <TextView
@@ -250,7 +259,10 @@
                     <TextView
                         android:layout_width="wrap_content"
                         android:layout_height="wrap_content"
-                        android:text="⚠️"
+                        android:background="@drawable/bg_icon_circle"
+                        android:gravity="center"
+                        android:text="MU"
+                        android:textColor="#FFFFFF"
                         android:textSize="20sp" />
 
                     <TextView
@@ -280,7 +292,10 @@
                     <TextView
                         android:layout_width="wrap_content"
                         android:layout_height="wrap_content"
-                        android:text="👤"
+                        android:background="@drawable/bg_icon_circle"
+                        android:gravity="center"
+                        android:text="PE"
+                        android:textColor="#FFFFFF"
                         android:textSize="20sp" />
 
                     <TextView
@@ -309,7 +324,10 @@
                     <TextView
                         android:layout_width="wrap_content"
                         android:layout_height="wrap_content"
-                        android:text="📋"
+                        android:background="@drawable/bg_icon_circle"
+                        android:gravity="center"
+                        android:text="HI"
+                        android:textColor="#FFFFFF"
                         android:textSize="20sp" />
 
                     <TextView
@@ -346,7 +364,10 @@
                     <TextView
                         android:layout_width="wrap_content"
                         android:layout_height="wrap_content"
-                        android:text="🔔"
+                        android:background="@drawable/bg_icon_circle"
+                        android:gravity="center"
+                        android:text="AV"
+                        android:textColor="#FFFFFF"
                         android:textSize="20sp" />
 
                     <TextView
@@ -375,7 +396,10 @@
                     <TextView
                         android:layout_width="wrap_content"
                         android:layout_height="wrap_content"
-                        android:text="🔐"
+                        android:background="@drawable/bg_icon_circle"
+                        android:gravity="center"
+                        android:text="IN"
+                        android:textColor="#FFFFFF"
                         android:textSize="20sp" />
 
                     <TextView
@@ -450,7 +474,7 @@
                 android:layout_width="match_parent"
                 android:layout_height="wrap_content"
                 android:layout_marginTop="28dp"
-                android:text="Curated collections"
+                android:text="Colecciones destacadas"
                 android:textColor="#071827"
                 android:textSize="22sp"
                 android:textStyle="bold" />
@@ -475,7 +499,7 @@
                         android:layout_width="match_parent"
                         android:layout_height="wrap_content"
                         android:letterSpacing="0.06"
-                        android:text="CLASSIC MOTORS"
+                        android:text="MOTORES CLASICOS"
                         android:textColor="#071827"
                         android:textSize="13sp"
                         android:textStyle="bold" />
@@ -490,7 +514,7 @@
                         android:layout_width="match_parent"
                         android:layout_height="wrap_content"
                         android:layout_marginTop="20dp"
-                        android:text="12 active lots"
+                        android:text="12 lotes activos"
                         android:textColor="#6B7280"
                         android:textSize="12sp" />
 
@@ -498,7 +522,7 @@
                         android:layout_width="match_parent"
                         android:layout_height="wrap_content"
                         android:layout_marginTop="6dp"
-                        android:text="Curated vehicles"
+                        android:text="Vehiculos seleccionados"
                         android:textColor="#A8872F"
                         android:textSize="11sp"
                         android:textStyle="bold" />
@@ -519,7 +543,7 @@
                         android:layout_width="match_parent"
                         android:layout_height="wrap_content"
                         android:letterSpacing="0.06"
-                        android:text="HIGH JEWELRY"
+                        android:text="ALTA JOYERIA"
                         android:textColor="#071827"
                         android:textSize="13sp"
                         android:textStyle="bold" />
@@ -534,7 +558,7 @@
                         android:layout_width="match_parent"
                         android:layout_height="wrap_content"
                         android:layout_marginTop="20dp"
-                        android:text="Coming soon"
+                        android:text="Proximamente"
                         android:textColor="#6B7280"
                         android:textSize="12sp" />
 
@@ -542,7 +566,7 @@
                         android:layout_width="match_parent"
                         android:layout_height="wrap_content"
                         android:layout_marginTop="6dp"
-                        android:text="Private collection"
+                        android:text="Coleccion privada"
                         android:textColor="#A8872F"
                         android:textSize="11sp"
                         android:textStyle="bold" />
@@ -556,7 +580,7 @@
                 android:layout_width="match_parent"
                 android:layout_height="wrap_content"
                 android:layout_marginTop="28dp"
-                android:text="Auction calendar"
+                android:text="Calendario de subastas"
                 android:textColor="#071827"
                 android:textSize="22sp"
                 android:textStyle="bold" />
@@ -573,7 +597,7 @@
                 <TextView
                     android:layout_width="match_parent"
                     android:layout_height="wrap_content"
-                    android:text="MAY 12 · 18:00"
+                    android:text="12 MAY - 18:00"
                     android:textColor="#A8872F"
                     android:textSize="12sp"
                     android:textStyle="bold" />
@@ -582,7 +606,7 @@
                     android:layout_width="match_parent"
                     android:layout_height="wrap_content"
                     android:layout_marginTop="9dp"
-                    android:text="Rare vintage cellar: Bordeaux Selection"
+                    android:text="Cava vintage: seleccion Bordeaux"
                     android:textColor="#071827"
                     android:textSize="17sp"
                     android:textStyle="bold" />
@@ -591,7 +615,7 @@
                     android:layout_width="match_parent"
                     android:layout_height="wrap_content"
                     android:layout_marginTop="5dp"
-                    android:text="48 lots · Starting at $400"
+                    android:text="48 lotes - desde $400"
                     android:textColor="#6B7280"
                     android:textSize="13sp" />
 

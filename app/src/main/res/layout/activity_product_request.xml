@@ -182,55 +182,20 @@
                     android:layout_height="52dp"
                     android:layout_marginTop="10dp"
                     android:background="@drawable/bg_input_premium"
-                    android:hint="Precio base sugerido"
+                    android:hint="Precio base sugerido (opcional)"
                     android:inputType="numberDecimal"
                     android:paddingLeft="14dp"
                     android:paddingRight="14dp"
                     android:textColor="#071827"
                     android:textColorHint="#94A3B8" />
 
-
-                <!-- SUBASTA DESTINO -->
                 <TextView
                     android:layout_width="match_parent"
                     android:layout_height="wrap_content"
-                    android:layout_marginTop="20dp"
-                    android:letterSpacing="0.08"
-                    android:text="SUBASTA DESTINO (OPCIONAL)"
-                    android:textColor="#A8872F"
-                    android:textSize="11sp"
-                    android:textStyle="bold" />
-
-                <LinearLayout
-                    android:id="@+id/selectorSubastaContainer"
-                    android:layout_width="match_parent"
-                    android:layout_height="52dp"
-                    android:layout_marginTop="10dp"
-                    android:background="@drawable/bg_input_premium"
-                    android:clickable="true"
-                    android:focusable="true"
-                    android:gravity="center_vertical"
-                    android:orientation="horizontal"
-                    android:paddingLeft="14dp"
-                    android:paddingRight="14dp">
-
-                    <TextView
-                        android:id="@+id/txtSubastaSeleccionada"
-                        android:layout_width="0dp"
-                        android:layout_height="wrap_content"
-                        android:layout_weight="1"
-                        android:text="Cargando subastas..."
-                        android:textColor="#94A3B8"
-                        android:textSize="14sp" />
-
-                    <TextView
-                        android:layout_width="wrap_content"
-                        android:layout_height="wrap_content"
-                        android:text="▾"
-                        android:textColor="#A8872F"
-                        android:textSize="16sp" />
-
-                </LinearLayout>
+                    android:layout_marginTop="6dp"
+                    android:text="La empresa revisa el bien y define la propuesta final de precio base y comision."
+                    android:textColor="#64748B"
+                    android:textSize="12sp" />
 
                 <!-- FOTOS -->
                 <TextView
@@ -444,6 +409,13 @@
                 android:text="Mis consignaciones: sin cargar."
                 android:textColor="#334155"
                 android:textSize="13sp" />
+
+            <LinearLayout
+                android:id="@+id/contenedorMisSolicitudes"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:layout_marginTop="10dp"
+                android:orientation="vertical" />
 
             <Button
                 android:id="@+id/btnVolverSolicitud"

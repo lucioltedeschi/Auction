@@ -145,7 +145,7 @@ public class BidActivity extends AppCompatActivity {
         String importeTexto = edtImportePuja.getText().toString().trim();
 
         if (importeTexto.isEmpty()) {
-            txtMensajePuja.setText("Ingresá un importe para pujar.");
+            mostrarValidacionPuja("Ingresa un importe para pujar.");
             return;
         }
 
@@ -153,17 +153,17 @@ public class BidActivity extends AppCompatActivity {
         try {
             importe = Double.parseDouble(importeTexto);
         } catch (Exception e) {
-            txtMensajePuja.setText("El importe ingresado no es válido.");
+            mostrarValidacionPuja("El importe ingresado no es valido.");
             return;
         }
 
         if (importe < pujaMinima) {
-            txtMensajePuja.setText("La puja debe ser al menos $" + String.format("%.2f", pujaMinima));
+            mostrarValidacionPuja("La puja debe ser al menos $" + String.format("%.2f", pujaMinima));
             return;
         }
 
         if (pujaMaxima != null && importe > pujaMaxima) {
-            txtMensajePuja.setText("La puja no puede superar $" + String.format("%.2f", pujaMaxima));
+            mostrarValidacionPuja("La puja no puede superar $" + String.format("%.2f", pujaMaxima));
             return;
         }
 
@@ -227,20 +227,17 @@ public class BidActivity extends AppCompatActivity {
 
     // ── MODALES ───────────────────────────────────────────────────────────────────
 
+    private void mostrarValidacionPuja(String mensaje) {
+        txtMensajePuja.setText(mensaje);
+        FeedbackDialog.error(this, mensaje);
+    }
+
     private void mostrarModalExito(String mensaje) {
-        View view = construirVistaModal("✓", "#16A34A", "Puja registrada", mensaje);
+        View view = construirVistaModal("OK", "#16A34A", "Puja recibida", mensaje + "\n\nVolve al catalogo para seguir el estado en vivo del lote.");
         new AlertDialog.Builder(this)
                 .setView(view)
                 .setCancelable(false)
-                .setPositiveButton("VER COMPRAS", (d, w) -> {
-                    Intent intent = new Intent(BidActivity.this, PurchasesActivity.class);
-                    startActivity(intent);
-                    finish();
-                })
-                .setNegativeButton("Seguir pujando", (d, w) -> {
-                    btnEnviarPuja.setEnabled(true);
-                    btnEnviarPuja.setText("Enviar puja");
-                    edtImportePuja.setText("");
+                .setPositiveButton("VOLVER AL CATALOGO", (d, w) -> {
                     finish();
                 })
                 .show();
@@ -252,13 +249,14 @@ public class BidActivity extends AppCompatActivity {
         if (lower.contains("oferta") || lower.contains("supera") || lower.contains("mayor")
                 || lower.contains("menor") || lower.contains("importe") || lower.contains("puja")) {
             titulo = "Puja superada";
-        } else if (lower.contains("habilitado") || lower.contains("verificado") || lower.contains("medio")) {
+        } else if (lower.contains("habilitado") || lower.contains("verificado") || lower.contains("medio")
+                || lower.contains("conectado") || lower.contains("subasta activa")) {
             titulo = "Sin acceso";
         } else {
             titulo = "No se pudo registrar";
         }
 
-        View view = construirVistaModal("✗", "#DC2626", titulo, error);
+        View view = construirVistaModal("!", "#DC2626", titulo, error);
         new AlertDialog.Builder(this)
                 .setView(view)
                 .setCancelable(true)

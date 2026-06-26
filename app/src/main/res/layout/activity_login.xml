@@ -161,7 +161,7 @@
             android:layout_height="wrap_content"
             android:layout_marginTop="14dp"
             android:lineSpacingExtra="2dp"
-            android:text="Acceso seguro · Identidad verificada · Medios de pago validados"
+            android:text="Acceso seguro - Identidad verificada - Medios de pago validados"
             android:textAlignment="center"
             android:textColor="#64748B"
             android:textSize="12sp" />

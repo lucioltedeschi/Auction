@@ -6,4 +6,5 @@ build/
 *.iml
 
 local.properties
+.env
 .DS_Store

@@ -9,6 +9,7 @@ import android.os.Looper;
 import android.view.View;
 import android.widget.Button;
 import android.widget.LinearLayout;
+import android.widget.ScrollView;
 import android.widget.TextView;
 
 import androidx.appcompat.app.AppCompatActivity;
@@ -28,9 +29,11 @@ public class SubastasActivity extends AppCompatActivity {
 
     private TextView txtMensajeSubastas;
     private LinearLayout contenedorSubastas;
+    private ScrollView scrollSubastas;
 
     private int userId;
     private String token;
+    private String ultimaRespuestaSubastas;
 
     private static final int POLL_INTERVAL_MS = 30_000;
     private final Handler pollingHandler = new Handler(Looper.getMainLooper());
@@ -57,12 +60,13 @@ public class SubastasActivity extends AppCompatActivity {
 
         txtMensajeSubastas = findViewById(R.id.txtMensajeSubastas);
         contenedorSubastas = findViewById(R.id.contenedorSubastas);
+        scrollSubastas = findViewById(R.id.scrollSubastas);
 
         SharedPreferences preferences = getSharedPreferences("sesion", MODE_PRIVATE);
         userId = preferences.getInt("userId", 0);
         token = preferences.getString("token", "");
 
-        // Start polling — first load immediate, then every 30s
+        // Primera carga inmediata y refresco cada 30s.
         pollingHandler.post(pollingRunnable);
     }
 
@@ -86,8 +90,9 @@ public class SubastasActivity extends AppCompatActivity {
     }
 
     private void cargarSubastas() {
-        txtMensajeSubastas.setText("Cargando subastas...");
-        contenedorSubastas.removeAllViews();
+        if (contenedorSubastas.getChildCount() == 0) {
+            txtMensajeSubastas.setText("Cargando subastas...");
+        }
 
         executor.execute(() -> {
             HttpURLConnection connection = null;
@@ -106,6 +111,10 @@ public class SubastasActivity extends AppCompatActivity {
                 String respuesta = leerRespuesta(inputStream);
 
                 if (statusCode == 200) {
+                    if (respuesta.equals(ultimaRespuestaSubastas)) {
+                        return;
+                    }
+                    ultimaRespuestaSubastas = respuesta;
                     JSONArray subastas = new JSONArray(respuesta);
                     mainHandler.post(() -> mostrarSubastas(subastas));
                 } else {
@@ -122,6 +131,8 @@ public class SubastasActivity extends AppCompatActivity {
     }
 
     private void mostrarSubastas(JSONArray subastas) {
+        int scrollAnterior = scrollSubastas.getScrollY();
+        boolean conservarPosicion = contenedorSubastas.getChildCount() > 0;
         contenedorSubastas.removeAllViews();
 
         if (subastas.length() == 0) {
@@ -152,6 +163,10 @@ public class SubastasActivity extends AppCompatActivity {
         } catch (Exception e) {
             txtMensajeSubastas.setText("Error mostrando subastas.");
         }
+
+        if (conservarPosicion) {
+            scrollSubastas.post(() -> scrollSubastas.scrollTo(0, scrollAnterior));
+        }
     }
 
     private View crearCardSubasta(int id, String fecha, String hora, String estado,
@@ -179,14 +194,14 @@ public class SubastasActivity extends AppCompatActivity {
         visual.setLayoutParams(visualParams);
 
         TextView chipLive = new TextView(this);
-        chipLive.setText(estado.toUpperCase() + "  ·  SUBASTA #" + id);
+        chipLive.setText(estado.toUpperCase() + "  -  SUBASTA #" + id);
         chipLive.setTextColor(Color.WHITE);
         chipLive.setTextSize(11);
         chipLive.setTypeface(null, android.graphics.Typeface.BOLD);
         chipLive.setLetterSpacing(0.08f);
 
         TextView titleVisual = new TextView(this);
-        titleVisual.setText("Evento de subasta verificado");
+        titleVisual.setText("Subasta verificada");
         titleVisual.setTextColor(Color.WHITE);
         titleVisual.setTextSize(23);
         titleVisual.setTypeface(null, android.graphics.Typeface.BOLD);
@@ -210,7 +225,7 @@ public class SubastasActivity extends AppCompatActivity {
 
         // CHIP CATEGORÍA
         TextView chipCategoria = new TextView(this);
-        chipCategoria.setText(categoria.toUpperCase() + "  ·  " + moneda);
+        chipCategoria.setText(categoria.toUpperCase() + "  -  " + moneda);
         chipCategoria.setTextColor(Color.parseColor("#071827"));
         chipCategoria.setTextSize(11);
         chipCategoria.setTypeface(null, android.graphics.Typeface.BOLD);
@@ -224,7 +239,7 @@ public class SubastasActivity extends AppCompatActivity {
 
         // DESCRIPCIÓN
         TextView descripcion = new TextView(this);
-        descripcion.setText("Evento de subasta verificado con activos seleccionados por especialistas. Accedé al catálogo para revisar lotes, precios base y disponibilidad de puja.");
+        descripcion.setText("Evento verificado con lotes seleccionados por especialistas. En el catalogo ves precios base, ofertas y disponibilidad de puja.");
         descripcion.setTextColor(Color.parseColor("#475569"));
         descripcion.setTextSize(14);
         descripcion.setLineSpacing(dp(3), 1.0f);
@@ -242,7 +257,7 @@ public class SubastasActivity extends AppCompatActivity {
         metricsRow.setLayoutParams(metricsRowParams);
 
         TextView dateBox = new TextView(this);
-        dateBox.setText("DATE\n" + fecha);
+        dateBox.setText("FECHA\n" + fecha);
         dateBox.setTextColor(Color.parseColor("#071827"));
         dateBox.setTextSize(12);
         dateBox.setTypeface(null, android.graphics.Typeface.BOLD);
@@ -253,7 +268,7 @@ public class SubastasActivity extends AppCompatActivity {
         dateBox.setLayoutParams(dateParams);
 
         TextView timeBox = new TextView(this);
-        timeBox.setText("START\n" + hora);
+        timeBox.setText("INICIO\n" + hora);
         timeBox.setTextColor(Color.parseColor("#071827"));
         timeBox.setTextSize(12);
         timeBox.setTypeface(null, android.graphics.Typeface.BOLD);
@@ -273,7 +288,10 @@ public class SubastasActivity extends AppCompatActivity {
             acceso.setTextColor(Color.parseColor("#166534"));
             acceso.setBackgroundResource(R.drawable.bg_success_chip);
         } else {
-            acceso.setText("SOLO VISUALIZACIÓN · " + motivoBloqueo);
+            String motivo = motivoBloqueo == null || motivoBloqueo.trim().isEmpty()
+                    ? "Revisa categoria, multas y medio de pago"
+                    : motivoBloqueo;
+            acceso.setText("SOLO VISUALIZACION - " + motivo);
             acceso.setTextColor(Color.parseColor("#991B1B"));
             acceso.setBackgroundResource(R.drawable.bg_danger_chip);
         }
@@ -288,7 +306,7 @@ public class SubastasActivity extends AppCompatActivity {
 
         // BOTÓN
         Button btnVerDetalle = new Button(this);
-        btnVerDetalle.setText(puedePujar ? "ENTRAR AL CATÁLOGO" : "VER CATÁLOGO");
+        btnVerDetalle.setText(puedePujar ? "ENTRAR AL CATALOGO" : "VER CATALOGO");
         btnVerDetalle.setTextColor(Color.parseColor("#071827"));
         btnVerDetalle.setTextSize(12);
         btnVerDetalle.setTypeface(null, android.graphics.Typeface.BOLD);

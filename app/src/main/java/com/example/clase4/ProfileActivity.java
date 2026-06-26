@@ -155,7 +155,7 @@ public class ProfileActivity extends AppCompatActivity {
             // Subtitle: categoría + estado
             String subtitle = categoria.equals("—") ? "" : categoria.substring(0, 1).toUpperCase() + categoria.substring(1).toLowerCase();
             if (!estado.equals("—")) {
-                subtitle += subtitle.isEmpty() ? estado : "  ·  " + estado;
+                subtitle += subtitle.isEmpty() ? estado : "  -  " + estado;
             }
             txtProfileSubtitle.setText(subtitle);
 
@@ -176,11 +176,11 @@ public class ProfileActivity extends AppCompatActivity {
             boolean activo = "activo".equalsIgnoreCase(estado) && habilitado;
             txtEstadoPerfil.setVisibility(View.VISIBLE);
             if (activo) {
-                txtEstadoPerfil.setText("✓  Habilitado para participar en subastas");
+                txtEstadoPerfil.setText("Habilitado para participar en subastas");
                 txtEstadoPerfil.setTextColor(Color.parseColor("#166534"));
                 txtEstadoPerfil.setBackgroundResource(R.drawable.bg_success_chip);
             } else {
-                txtEstadoPerfil.setText("✕  No habilitado para participar en subastas");
+                txtEstadoPerfil.setText("No habilitado para participar en subastas");
                 txtEstadoPerfil.setTextColor(Color.parseColor("#991B1B"));
                 txtEstadoPerfil.setBackgroundResource(R.drawable.bg_danger_chip);
             }

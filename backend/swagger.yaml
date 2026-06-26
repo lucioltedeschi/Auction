@@ -212,6 +212,46 @@ paths:
         "200":
           description: Subastas con estado de acceso del cliente
 
+  /api/clients/{clientId}/active-auction:
+    post:
+      tags: [Subastas]
+      summary: Registrar la subasta activa del cliente
+      description: Impide que un mismo cliente quede conectado a mas de una subasta al mismo tiempo.
+      parameters:
+        - $ref: "#/components/parameters/ClientId"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [auctionId]
+              properties:
+                auctionId: { type: integer, example: 1 }
+      responses:
+        "200":
+          description: Conexion activa registrada
+        "409":
+          description: El cliente ya esta conectado a otra subasta
+
+  /api/clients/{clientId}/active-auction/release:
+    post:
+      tags: [Subastas]
+      summary: Liberar la subasta activa del cliente
+      parameters:
+        - $ref: "#/components/parameters/ClientId"
+      requestBody:
+        required: false
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                auctionId: { type: integer, example: 1 }
+      responses:
+        "200":
+          description: Conexion activa liberada
+
   /api/auctions/{auctionId}:
     get:
       tags: [Subastas]
@@ -435,7 +475,8 @@ paths:
       summary: Solicitar consignacion de articulo
       description: >
         Requiere declaracion de propiedad, origen licito y minimo 6 fotos en base64.
-        Opcionalmente el cliente puede indicar una subasta destino preferida (subastaId).
+        El cliente no elige subasta destino; la empresa inspecciona el bien y luego
+        informa precio base, comision y condiciones para aceptacion del usuario.
       requestBody:
         required: true
         content:
@@ -452,7 +493,10 @@ paths:
     get:
       tags: [Consignacion]
       summary: Seguimiento de consignaciones del cliente
-      description: Devuelve estado (pendiente / aceptado / rechazado) y subasta preferida de cada solicitud.
+      description: >
+        Devuelve estados del ciclo pendiente_inspeccion, propuesta_enviada,
+        aceptado_usuario, rechazado_usuario e incluido_subasta, junto con
+        condiciones propuestas cuando existan.
       parameters:
         - $ref: "#/components/parameters/ClientId"
       responses:
@@ -474,6 +518,31 @@ paths:
           description: Fotos del producto
 
   # ── Admin ─────────────────────────────────────────────────────────────────────
+
+  /api/products/{productId}/proposal-response:
+    post:
+      tags: [Consignacion]
+      summary: Aceptar o rechazar condiciones propuestas por la empresa
+      parameters:
+        - name: productId
+          in: path
+          required: true
+          schema: { type: integer }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [duenio, decision]
+              properties:
+                duenio: { type: integer, example: 1 }
+                decision: { type: string, enum: [aceptar, rechazar], example: "aceptar" }
+      responses:
+        "200":
+          description: Decision registrada
+        "409":
+          description: La consignacion no tiene propuesta pendiente
 
   /api/admin/users/pending:
     get:
@@ -544,10 +613,10 @@ paths:
     get:
       tags: [Admin]
       summary: Listar consignaciones pendientes de revision
-      description: Incluye subasta preferida del consignante (subastaPreferida, subastaUbicacion, subastaFecha).
+      description: Incluye solicitudes pendientes de inspeccion y productos aceptados por usuario listos para catalogo.
       responses:
         "200":
-          description: Productos pendientes con info de subasta preferida
+          description: Productos pendientes con estado y condiciones propuestas
 
   /api/admin/products/{productId}/review:
     patch:
@@ -568,11 +637,14 @@ paths:
               properties:
                 estadoAprobacion:
                   type: string
-                  enum: [aceptado, rechazado]
-                  example: "aceptado"
+                  enum: [propuesta_enviada, rechazado]
+                  example: "propuesta_enviada"
                 motivoRechazo: { type: string, nullable: true }
                 ubicacionDeposito: { type: string, nullable: true, example: "Deposito A - Estante 3" }
                 seguro: { type: string, nullable: true, example: "POL-ALE-001" }
+                precioBase: { type: number, nullable: true, example: 10000 }
+                comision: { type: number, nullable: true, example: 1200 }
+                condicionesPropuestas: { type: string, nullable: true, example: "Envio a cargo del comprador" }
       responses:
         "200":
           description: Revision actualizada
@@ -580,7 +652,7 @@ paths:
   /api/admin/auctions/{auctionId}/items:
     post:
       tags: [Admin]
-      summary: Asignar producto aceptado a una subasta (crear item de catalogo)
+      summary: Asignar producto aceptado por el usuario a una subasta
       parameters:
         - $ref: "#/components/parameters/AuctionId"
       requestBody:
@@ -598,7 +670,40 @@ paths:
         "201":
           description: Item de catalogo creado
         "400":
-          description: Datos invalidos o producto no aceptado
+          description: Datos invalidos o producto sin aceptacion final del usuario
+
+  /api/admin/auctions/{auctionId}/items/{itemId}/close:
+    post:
+      tags: [Admin]
+      summary: Cerrar item y generar venta
+      description: >
+        Cierra un lote de catalogo. Si existe puja ganadora, genera la compra
+        pendiente para el cliente ganador. Si no hubo pujas, genera una venta
+        pagada al cliente interno empresa por el precio base.
+      parameters:
+        - $ref: "#/components/parameters/AuctionId"
+        - $ref: "#/components/parameters/ItemId"
+      requestBody:
+        required: false
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                medioPagoId: { type: integer, nullable: true, example: 12 }
+                costoEnvio: { type: number, nullable: true, example: 0 }
+                retiroPersonal: { type: string, enum: [si, no], nullable: true, example: "no" }
+      responses:
+        "200":
+          description: Item cerrado sin pujas; compra registrada por empresa
+        "201":
+          description: Item cerrado con venta generada para ganador
+        "400":
+          description: No se puede generar venta por falta de medio de pago compatible
+        "404":
+          description: Item o subasta no encontrados
+        "409":
+          description: El item ya fue cerrado
 
   /api/admin/auctions/{auctionId}/duracion:
     patch:
@@ -710,11 +815,6 @@ components:
         precioBaseSugerido: { type: number, nullable: true, example: 10000 }
         declaracionPropiedad: { type: string, enum: [si], example: "si" }
         origenLicito: { type: string, enum: [si], example: "si" }
-        subastaId:
-          type: integer
-          nullable: true
-          example: 2
-          description: ID de subasta destino preferida por el consignante (opcional)
         fotos:
           type: array
           minItems: 6

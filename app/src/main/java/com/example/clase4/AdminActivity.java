@@ -44,6 +44,7 @@ public class AdminActivity extends AppCompatActivity {
     private TextView txtAdminMedioSeleccionado;
     private LinearLayout contenedorUsuariosPendientes;
     private LinearLayout contenedorMediosPendientes;
+    private LinearLayout contenedorProductosPendientes;
     private ImageView imgAdminDniFrente;
     private ImageView imgAdminDniDorso;
     private EditText edtAdminUsuarioId;
@@ -75,6 +76,7 @@ public class AdminActivity extends AppCompatActivity {
         txtAdminMedioSeleccionado = findViewById(R.id.txtAdminMedioSeleccionado);
         contenedorUsuariosPendientes = findViewById(R.id.contenedorUsuariosPendientes);
         contenedorMediosPendientes = findViewById(R.id.contenedorMediosPendientes);
+        contenedorProductosPendientes = findViewById(R.id.contenedorProductosPendientes);
         imgAdminDniFrente = findViewById(R.id.imgAdminDniFrente);
         imgAdminDniDorso = findViewById(R.id.imgAdminDniDorso);
         edtAdminUsuarioId = findViewById(R.id.edtAdminUsuarioId);
@@ -140,6 +142,7 @@ public class AdminActivity extends AppCompatActivity {
                     txtAdminPendientes.setText(builder.toString());
                     mostrarUsuariosPendientes(usuarios);
                     mostrarMediosPendientes(medios);
+                    mostrarProductosPendientes(productos);
                 });
             } catch (Exception e) {
                 mainHandler.post(() -> txtAdminPendientes.setText(
@@ -205,7 +208,7 @@ public class AdminActivity extends AppCompatActivity {
         String admitido = usuario.optString("admitido", "-");
 
         TextView titulo = crearTexto("DNI " + documento, "#071827", 17, true);
-        TextView detalle = crearTexto(nombre + "\nCategoria: " + categoria + " · Admitido: " + admitido, "#475569", 13, false);
+        TextView detalle = crearTexto(nombre + "\nCategoria: " + categoria + " - Admitido: " + admitido, "#475569", 13, false);
 
         card.addView(titulo);
         card.addView(detalle);
@@ -291,9 +294,104 @@ public class AdminActivity extends AppCompatActivity {
         String tipo = medio.optString("tipo", "-");
         String entidad = medio.optString("entidad", "-");
 
-        card.addView(crearTexto("Medio #" + id + " · " + formatearTipo(tipo), "#071827", 17, true));
+        card.addView(crearTexto("Medio #" + id + " - " + formatearTipo(tipo), "#071827", 17, true));
         card.addView(crearTexto(cliente + "\n" + entidad, "#475569", 13, false));
         card.setOnClickListener(v -> seleccionarMedioPendiente(medio));
+
+        return card;
+    }
+
+    private void mostrarProductosPendientes(JSONArray productos) {
+        if (contenedorProductosPendientes == null) return;
+        contenedorProductosPendientes.removeAllViews();
+
+        if (productos.length() == 0) {
+            contenedorProductosPendientes.addView(crearTexto("No hay consignaciones pendientes.", "#64748B", 14, false));
+            return;
+        }
+
+        for (int i = 0; i < productos.length(); i++) {
+            try {
+                JSONObject producto = productos.getJSONObject(i);
+                contenedorProductosPendientes.addView(crearCardProductoPendiente(producto));
+            } catch (Exception ignored) {
+            }
+        }
+    }
+
+    private View crearCardProductoPendiente(JSONObject producto) {
+        LinearLayout card = new LinearLayout(this);
+        card.setOrientation(LinearLayout.VERTICAL);
+        card.setPadding(dp(14), dp(12), dp(14), dp(12));
+        card.setBackgroundResource(R.drawable.bg_metric_box);
+
+        LinearLayout.LayoutParams params = new LinearLayout.LayoutParams(
+                LinearLayout.LayoutParams.MATCH_PARENT,
+                LinearLayout.LayoutParams.WRAP_CONTENT
+        );
+        params.setMargins(0, 0, 0, dp(10));
+        card.setLayoutParams(params);
+
+        LinearLayout row = new LinearLayout(this);
+        row.setOrientation(LinearLayout.HORIZONTAL);
+        row.setGravity(android.view.Gravity.CENTER_VERTICAL);
+
+        ImageView foto = new ImageView(this);
+        LinearLayout.LayoutParams fotoParams = new LinearLayout.LayoutParams(dp(76), dp(76));
+        fotoParams.setMargins(0, 0, dp(12), 0);
+        foto.setLayoutParams(fotoParams);
+        foto.setScaleType(ImageView.ScaleType.CENTER_CROP);
+        cargarImagenBase64(producto.optString("fotoPrincipalBase64", ""), foto);
+
+        LinearLayout datos = new LinearLayout(this);
+        datos.setOrientation(LinearLayout.VERTICAL);
+        datos.setLayoutParams(new LinearLayout.LayoutParams(0, LinearLayout.LayoutParams.WRAP_CONTENT, 1));
+
+        int id = producto.optInt("id", 0);
+        String titulo = producto.optString("descripcionCatalogo", "-");
+        String duenio = producto.optString("duenioNombre", "-");
+        String estado = producto.optString("estadoDescripcion", producto.optString("estadoAprobacion", "-"));
+        int fotos = producto.optInt("fotos", 0);
+
+        datos.addView(crearTexto("#" + id + " - " + titulo, "#071827", 16, true));
+        datos.addView(crearTexto("Consignante: " + duenio + "\nEstado: " + estado + "\nFotos: " + fotos, "#475569", 13, false));
+
+        row.addView(foto);
+        row.addView(datos);
+        card.addView(row);
+
+        String descripcion = producto.optString("descripcionCompleta", "");
+        if (!descripcion.isEmpty() && !"null".equals(descripcion)) {
+            card.addView(crearTexto(descripcion, "#334155", 13, false));
+        }
+
+        String historia = producto.optString("historia", "");
+        if (!historia.isEmpty() && !"null".equals(historia)) {
+            card.addView(crearTexto("Historia/procedencia\n" + historia, "#334155", 13, false));
+        }
+
+        double sugerido = producto.optDouble("precioBaseSugerido", 0);
+        if (sugerido > 0) {
+            card.addView(crearTexto("Sugerido por cliente\nPrecio base: $" + String.format("%.2f", sugerido), "#0F766E", 13, true));
+        }
+
+        double precio = producto.optDouble("precioBasePropuesto", 0);
+        double comision = producto.optDouble("comisionPropuesta", 0);
+        if (precio > 0 || comision > 0) {
+            String propuesta = "Propuesta";
+            if (precio > 0) propuesta += "\nPrecio base: $" + String.format("%.2f", precio);
+            if (comision > 0) propuesta += "\nComision: $" + String.format("%.2f", comision);
+            card.addView(crearTexto(propuesta, "#071827", 13, true));
+        }
+
+        card.setOnClickListener(v -> {
+            edtAdminProductoId.setText(String.valueOf(id));
+            if (precio > 0) edtAdminPrecioBase.setText(String.valueOf(precio));
+            else if (sugerido > 0) edtAdminPrecioBase.setText(String.valueOf(sugerido));
+            if (comision > 0) edtAdminComision.setText(String.valueOf(comision));
+            mostrarInfo("Consignacion seleccionada #" + id);
+            mostrarDialogConsignaciones();
+        });
 
         return card;
     }
@@ -461,8 +559,28 @@ public class AdminActivity extends AppCompatActivity {
         try {
             body.put("estadoAprobacion", estado);
             body.put("motivoRechazo", edtAdminMotivoRechazo.getText().toString().trim());
+            if ("propuesta_enviada".equals(estado)) {
+                String precioBase = edtAdminPrecioBase.getText().toString().trim();
+                String comision = edtAdminComision.getText().toString().trim();
+                if (precioBase.isEmpty() || comision.isEmpty()) {
+                    mostrarError("Para enviar propuesta ingresa precio base y comision.");
+                    return;
+                }
+                double precio = Double.parseDouble(precioBase);
+                double comisionValor = Double.parseDouble(comision);
+                if (precio <= 0 || comisionValor <= 0) {
+                    mostrarError("Precio base y comision deben ser mayores a cero.");
+                    return;
+                }
+                body.put("precioBase", precio);
+                body.put("comision", comisionValor);
+                body.put("condicionesPropuestas", "Condiciones informadas por la empresa y sujetas a aceptacion del usuario.");
+            }
             body.put("ubicacionDeposito", "Depósito asignado desde panel interno");
-        } catch (Exception ignored) {
+            body.put("seguro", "Poliza base contratada por la empresa segun valor base propuesto.");
+        } catch (Exception e) {
+            mostrarError("Precio base y comision deben ser numericos.");
+            return;
         }
 
         enviarJson("/api/admin/products/" + productId + "/review", "PATCH", body);
@@ -481,11 +599,17 @@ public class AdminActivity extends AppCompatActivity {
 
         JSONObject body = new JSONObject();
         try {
+            double precio = Double.parseDouble(precioBase);
+            double comisionValor = Double.parseDouble(comision);
+            if (precio <= 0 || comisionValor <= 0) {
+                mostrarError("Precio base y comision deben ser mayores a cero.");
+                return;
+            }
             body.put("productId", Integer.parseInt(productId));
-            body.put("precioBase", Double.parseDouble(precioBase));
-            body.put("comision", Double.parseDouble(comision));
+            body.put("precioBase", precio);
+            body.put("comision", comisionValor);
         } catch (Exception e) {
-            mostrarError("Precio base y comisión deben ser numéricos.");
+            mostrarError("Precio base y comision deben ser numericos.");
             return;
         }
 
@@ -766,12 +890,18 @@ public class AdminActivity extends AppCompatActivity {
                     int pid = p.optInt("id", 0);
                     String desc = p.optString("descripcionCatalogo", "-");
                     String duenio = p.optString("duenioNombre", "-");
-                    int subPref = p.optInt("subastaPreferida", 0);
-                    String subUbic = p.optString("subastaUbicacion", "");
+                    String estado = p.optString("estadoDescripcion", p.optString("estadoAprobacion", "-"));
+                    double sugerido = p.optDouble("precioBaseSugerido", 0);
+                    double precio = p.optDouble("precioBasePropuesto", 0);
+                    double comision = p.optDouble("comisionPropuesta", 0);
 
                     String linea = "#" + pid + "  " + desc + "\n" +
-                            "Consignante: " + duenio +
-                            (subPref > 0 ? "\nSubasta preferida: #" + subPref + " – " + subUbic : "");
+                            "Consignante: " + duenio + "\n" +
+                            "Estado: " + estado +
+                            (sugerido > 0 ? "\nSugerido cliente: $" + String.format("%.2f", sugerido) : "") +
+                            (precio > 0 ? "\nPrecio propuesto: $" + String.format("%.2f", precio) : "") +
+                            (comision > 0 ? "\nComision: $" + String.format("%.2f", comision) : "") +
+                            "";
 
                     android.widget.Button btnItem = new android.widget.Button(this);
                     btnItem.setText(linea);
@@ -787,11 +917,11 @@ public class AdminActivity extends AppCompatActivity {
                     bp.setMargins(0, 0, 0, dp(8));
                     btnItem.setLayoutParams(bp);
                     final int finalPid = pid;
-                    final int finalSubPref = subPref;
                     btnItem.setOnClickListener(v -> {
                         edtAdminProductoId.setText(String.valueOf(finalPid));
-                        // Pre-fill subasta if the product has a preferred one
-                        if (finalSubPref > 0) edtAdminSubastaId.setText(String.valueOf(finalSubPref));
+                        if (precio > 0) edtAdminPrecioBase.setText(String.valueOf(precio));
+                        else if (sugerido > 0) edtAdminPrecioBase.setText(String.valueOf(sugerido));
+                        if (comision > 0) edtAdminComision.setText(String.valueOf(comision));
                     });
                     container.addView(btnItem);
                 } catch (Exception ignored) {}
@@ -810,6 +940,16 @@ public class AdminActivity extends AppCompatActivity {
         String current = edtAdminProductoId.getText().toString().trim();
         if (!current.isEmpty()) edtId.setText(current);
         container.addView(edtId);
+        container.addView(buildLabel("PRECIO BASE PROPUESTO"));
+        EditText edtPrecio = buildInput("Precio base definido por la empresa", android.text.InputType.TYPE_NUMBER_FLAG_DECIMAL | android.text.InputType.TYPE_CLASS_NUMBER);
+        String precioActual = edtAdminPrecioBase.getText().toString().trim();
+        if (!precioActual.isEmpty()) edtPrecio.setText(precioActual);
+        container.addView(edtPrecio);
+        container.addView(buildLabel("COMISION PROPUESTA"));
+        EditText edtComision = buildInput("Comision a cobrar", android.text.InputType.TYPE_NUMBER_FLAG_DECIMAL | android.text.InputType.TYPE_CLASS_NUMBER);
+        String comisionActual = edtAdminComision.getText().toString().trim();
+        if (!comisionActual.isEmpty()) edtComision.setText(comisionActual);
+        container.addView(edtComision);
         container.addView(buildLabel("MOTIVO DE RECHAZO (solo si rechazás)"));
         EditText edtMotivo = buildInput("Motivo de rechazo, si aplica", android.text.InputType.TYPE_CLASS_TEXT);
         container.addView(edtMotivo);
@@ -820,7 +960,7 @@ public class AdminActivity extends AppCompatActivity {
         AlertDialog dialog = new AlertDialog.Builder(this)
                 .setTitle("Revisar consignación")
                 .setView(scrollView)
-                .setPositiveButton("ACEPTAR", null)
+                .setPositiveButton("ENVIAR PROPUESTA", null)
                 .setNegativeButton("RECHAZAR", null)
                 .setNeutralButton("Cancelar", null)
                 .create();
@@ -830,9 +970,11 @@ public class AdminActivity extends AppCompatActivity {
                 String id = edtId.getText().toString().trim();
                 if (id.isEmpty()) { mostrarError("Ingresá el ID."); return; }
                 edtAdminProductoId.setText(id);
+                edtAdminPrecioBase.setText(edtPrecio.getText().toString().trim());
+                edtAdminComision.setText(edtComision.getText().toString().trim());
                 edtAdminMotivoRechazo.setText("");
                 dialog.dismiss();
-                revisarProducto("aceptado");
+                revisarProducto("propuesta_enviada");
             });
             dialog.getButton(AlertDialog.BUTTON_NEGATIVE).setOnClickListener(v -> {
                 String id = edtId.getText().toString().trim();
@@ -922,7 +1064,7 @@ public class AdminActivity extends AppCompatActivity {
                 conn.disconnect();
 
                 if (status == 200) {
-                    mainHandler.post(() -> mostrarOk("Timer de subasta #" + subastaId + " → " + minutos + " min ✓"));
+                    mainHandler.post(() -> mostrarOk("Timer de subasta #" + subastaId + " actualizado a " + minutos + " min"));
                 } else {
                     JSONObject err = new JSONObject(resp);
                     mainHandler.post(() -> mostrarError("No se pudo actualizar duración: " + err.optString("error")));

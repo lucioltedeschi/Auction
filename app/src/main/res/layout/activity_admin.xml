@@ -195,6 +195,23 @@
                     android:layout_marginTop="8dp"
                     android:orientation="vertical" />
 
+                <TextView
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:layout_marginTop="14dp"
+                    android:letterSpacing="0.08"
+                    android:text="CONSIGNACIONES PENDIENTES"
+                    android:textColor="#A8872F"
+                    android:textSize="11sp"
+                    android:textStyle="bold" />
+
+                <LinearLayout
+                    android:id="@+id/contenedorProductosPendientes"
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:layout_marginTop="8dp"
+                    android:orientation="vertical" />
+
             </LinearLayout>
 
             <!-- GRID DE ACCIONES -->

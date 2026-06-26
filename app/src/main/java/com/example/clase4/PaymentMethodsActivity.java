@@ -184,7 +184,7 @@ public class PaymentMethodsActivity extends AppCompatActivity {
 
         // Entity
         TextView entidadTv = new TextView(this);
-        entidadTv.setText(entidad + "  ·  " + moneda.toUpperCase());
+        entidadTv.setText(entidad + "  -  " + moneda.toUpperCase());
         entidadTv.setTextSize(13);
         entidadTv.setTextColor(Color.parseColor("#475569"));
         LinearLayout.LayoutParams entP = new LinearLayout.LayoutParams(

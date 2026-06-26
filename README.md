@@ -1,94 +1,122 @@
-# AUCT.IO - Premier Auction House App
+# AUCT.IO - Sistema de Subastas
 
-AUCT.IO es una plataforma de subastas de lujo diseñada para conectar artefactos excepcionales con coleccionistas modernos. Este repositorio contiene el ecosistema completo: Base de Datos, Backend (API) y Frontend (Android).
+Aplicacion Android + API REST + SQL Server para gestionar subastas, pujas, compras, multas y consignacion de bienes.
 
-## 📂 Estructura del Proyecto
+## Estructura
 
-El repositorio está organizado de la siguiente manera:
+- `app/`: frontend Android nativo.
+- `backend/`: API REST Node.js/Express.
+- `database/`: scripts SQL y migraciones.
+- `docs/`: consignas, correcciones, guias de demo y auditoria.
 
-* **`/app`**: Proyecto principal de Android Studio (Java). Contiene la lógica del front-end.
-    * Ruta clave: `app/src/main/java/com/example/clase4` (o tu nombre de paquete).
-* **`/backend`**: Servidor API REST desarrollado en Node.js.
-    * Archivo principal: `index.js`.
-* **`/database`**: Scripts de configuración de datos.
-    * Archivo: `script.txt` (Contiene la creación de tablas y procedimientos).
-* **`/docs`**: Documentación visual y de negocio.
-    * `PantallasHD.pdf`: Diseños de alta resolución.
-    * `Presentacion.pdf`: Concepto y arquitectura.
+## Backend
 
----
+1. Copiar `.env.example` a `.env`.
+2. Ajustar credenciales SQL Server:
 
-## 🛠️ Requisitos Previos
+```env
+PORT=3000
+DB_USER=sa
+DB_PASSWORD=1234
+DB_SERVER=localhost
+DB_PORT=1433
+DB_NAME=auction
+DB_ENCRYPT=false
+DB_TRUST_CERT=true
+COMPANY_CLIENT_ID=9000007
+```
 
-Antes de empezar, asegúrate de tener instalado:
-1.  **Node.js** (v14 o superior).
-2.  **SQL Server** (o el motor de base de datos que utilices).
-3.  **Android Studio** (Koala o superior).
+3. Instalar dependencias desde la raiz:
 
----
+```bash
+npm install
+```
 
-## 🚀 Guía de Instalación (Paso a Paso)
+4. Levantar API:
 
-### 1. Configurar la Base de Datos
-1.  Navega a la carpeta `/database`.
-2.  Abre el archivo `script.txt`.
-3.  Copia y ejecuta el contenido en tu gestor de base de datos para crear la estructura de **Auct.io**.
+```bash
+npm start
+```
 
-### 2. Levantar el Backend
-1.  Abre una terminal en la carpeta `/backend`.
-2.  Instala las dependencias necesarias:
-    ```bash
-    npm install
-    ```
-3.  Inicia el servidor:
-    ```bash
-    node index.js
-    ```
-    *Nota: El servidor correrá por defecto en el puerto 3000.*
+Health check:
 
-### 3. Configurar el Frontend (Android)
-1.  Abre **Android Studio**.
-2.  Importa la carpeta `/app`.
-3.  **Importante:** Si usas un emulador, asegúrate de que la URL base de tu API en el código Java apunte a `http://10.0.2.2:3000`. Si usas un celular físico, usa la IP local de tu PC.
-4.  Haz un **Sync Project with Gradle Files** y dale a **Run**.
+```text
+GET /api/test
+```
 
----
+## Android
 
-## 🎨 Identidad Visual
-El proyecto sigue estrictamente el manual de marca definido en la documentación:
-* **Primary Navy:** `#0A2647`
-* **Auct Gold:** `#C5A059`
-* **Neutral Background:** `#F8F9FA`
+Configurar la URL del backend en:
 
----
+```text
+app/src/main/java/com/example/clase4/ApiConfig.java
+```
 
-## 📝 Notas de Desarrollo
-* **KYC (Know Your Customer):** La pantalla de registro implementa un flujo de validación de identidad de 3 pasos (Cuenta, Identidad, Finalización).
-* **Seguridad:** Se utiliza cifrado para las transacciones de subastas de alto valor.
+Para emulador:
 
----
+```java
+public static final String BASE_URL = "http://10.0.2.2:3000";
+```
 
-## Segunda entrega - circuito integrado
+Para celular fisico en la misma red:
 
-Para defender la segunda entrega, usar el flujo documentado en:
+```java
+public static final String BASE_URL = "http://IP_DE_LA_PC:3000";
+```
 
-* `docs/Segunda_Entrega_Flujo_Demo.md`
+Para entrega 3 con backend online:
 
-Circuito recomendado:
+```java
+public static final String BASE_URL = "https://URL_PUBLICA";
+```
 
-1. Registro KYC de usuario.
-2. Aprobacion interna desde panel admin.
-3. Login de cliente.
-4. Carga de medio de pago.
-5. Verificacion interna del medio.
-6. Ingreso a subasta disponible.
-7. Visualizacion de catalogo con imagen del lote.
-8. Puja validada por frontend y backend.
+Compilar APK debug:
 
-Usuarios de prueba principales:
+```powershell
+$env:JAVA_HOME='C:\Program Files\Android\Android Studio\jbr'
+.\gradlew.bat :app:assembleDebug
+```
 
-* Cliente: `30123456` / `1234`
-* Admin: `20000111` / `1234`
+APK:
 
----
-**Desarrollado por:** Lucio Leonardo Tedeschi Pontiroli
+```text
+app/build/outputs/apk/debug/app-debug.apk
+```
+
+## Usuarios Demo
+
+- Admin/verificador: `20000111` / `1234`
+- Cliente habilitado: `30123456` / `1234`
+- Cliente habilitado: `30999888` / `1234`
+- Cliente con multa pendiente: `31888777` / `1234`
+- Usuario pendiente precargado: `40000111` / `1234`
+- Cliente interno empresa: `90000007` / `1234` (solo para registrar compras sin pujas; ID tecnico `9000007`)
+
+## Documentacion De Entrega
+
+- `docs/Estado_Entrega3_Auditoria.md`: cobertura de entregas 1, 2 y 3.
+- `docs/Entrega3_Guia_Final.md`: instalacion, publicacion y guion de demo.
+- `docs/Entrega3_Checklist_Final.md`: checklist corta para cierre de entrega.
+- `docs/Segunda_Entrega_Flujo_Demo.md`: flujo integrado usado en entrega 2.
+- `database/ORDEN_EJECUCION_ENTREGA3.md`: orden de scripts SQL recomendado.
+- `backend/swagger.yaml`: documentacion OpenAPI.
+
+Orden recomendado de scripts SQL para una base nueva:
+
+1. `database/CREAR_BASE.sql`
+2. `database/DATOS_DEMO_BASE.sql`
+3. `database/ENTREGA3_CORRECCIONES.sql`
+4. `database/ENTREGA3_DEMO_SUBASTAS.sql`
+5. `database/DATOS_DEMO_MULTA.sql`
+
+`database/NUEVAS_SUBASTAS.sql` queda como seed historico de entrega 2; para Entrega 3 conviene usar `ENTREGA3_DEMO_SUBASTAS.sql` porque es idempotente y tiene datos demo pensados para esta entrega.
+
+## Correcciones Entrega 2 Cubiertas
+
+- Un usuario no puede conectarse a mas de una subasta a la vez.
+- El vendedor no elige subasta preferida.
+- El admin decide catalogo/subasta.
+- El admin informa precio base y comision.
+- El cliente acepta o rechaza condiciones.
+- El producto no se asigna a subasta sin aceptacion final del usuario.
+- Si un lote cierra sin pujas, la empresa queda registrada como compradora al precio base.
