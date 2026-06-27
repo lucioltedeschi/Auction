@@ -20,12 +20,43 @@ const config = {
     port: Number(process.env.DB_PORT || 1433)
 };
 
-const poolPromise = new sql.ConnectionPool(config)
-    .connect()
-    .then(pool => {
-        console.log(`Conectado a SQL Server ${config.server}:${config.port}/${config.database}`);
-        return pool;
-    })
-    .catch(err => console.log("Error de conexion SQL:", err));
+let activePool = null;
+let connectionAttempt = null;
+
+async function getPool() {
+    if (activePool && activePool.connected) return activePool;
+    if (connectionAttempt) return connectionAttempt;
+
+    const candidate = new sql.ConnectionPool(config);
+    connectionAttempt = candidate.connect()
+        .then(pool => {
+            activePool = pool;
+            activePool.on("error", err => {
+                console.error("Conexion SQL interrumpida:", err.message);
+                activePool = null;
+            });
+            console.log(`Conectado a SQL Server ${config.server}:${config.port}/${config.database}`);
+            return activePool;
+        })
+        .catch(async err => {
+            activePool = null;
+            try { await candidate.close(); } catch (ignored) { }
+            console.error("Error de conexion SQL:", err.message);
+            throw err;
+        })
+        .finally(() => {
+            connectionAttempt = null;
+        });
+
+    return connectionAttempt;
+}
+
+// Thenable compatible con todos los `await poolPromise` existentes. Cada
+// request reintenta la conexion si Azure estaba pausado o si la red se corto.
+const poolPromise = {
+    then: (resolve, reject) => getPool().then(resolve, reject),
+    catch: reject => getPool().catch(reject),
+    finally: callback => getPool().finally(callback)
+};
 
 module.exports = { sql, poolPromise };
