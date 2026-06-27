@@ -16,7 +16,7 @@ android {
         versionCode 1
         versionName "1.0"
 
-        def apiBaseUrl = project.findProperty("API_BASE_URL") ?: "http://10.0.2.2:3000"
+        def apiBaseUrl = project.findProperty("API_BASE_URL") ?: "https://auct-io-api.onrender.com"
         buildConfigField "String", "API_BASE_URL", "\"${apiBaseUrl.toString().replaceAll('/+$', '')}\""
 
         testInstrumentationRunner "androidx.test.runner.AndroidJUnitRunner"

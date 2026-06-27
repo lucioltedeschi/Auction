@@ -46,14 +46,20 @@ GET /api/test
 
 ## Android
 
-La URL del backend se define al compilar. Sin parametro usa
-`http://10.0.2.2:3000`, apropiado para el emulador Android.
+La URL del backend se define al compilar. Sin parametro usa el backend publico
+de Entrega 3: `https://auct-io-api.onrender.com`.
 
 Compilar APK debug:
 
 ```powershell
 $env:JAVA_HOME='C:\Program Files\Android\Android Studio\jbr'
 .\gradlew.bat :app:assembleDebug
+```
+
+Para desarrollo con backend local en el emulador:
+
+```powershell
+.\gradlew.bat :app:assembleDebug -PAPI_BASE_URL=http://10.0.2.2:3000
 ```
 
 Para un celular en la red local:
