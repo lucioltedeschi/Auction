@@ -1,5 +1,7 @@
 const express = require("express");
 const cors = require("cors");
+const http = require("http");
+const { WebSocketServer, WebSocket } = require("ws");
 const { poolPromise, sql } = require("./db");
 
 const app = express();
@@ -17,6 +19,7 @@ app.use((req, res, next) => {
 const PORT = process.env.PORT || 3000;
 const ACTIVE_AUCTION_TTL_MS = 4 * 60 * 60 * 1000;
 const activeAuctionSessions = new Map();
+let wss;
 const COMPANY_CLIENT_ID = Number(process.env.COMPANY_CLIENT_ID || 9000007);
 
 const ESTADOS_CONSIGNACION = {
@@ -223,6 +226,52 @@ function liberarSesionActiva(clienteId, auctionId) {
 
   if (sesion && (!subasta || sesion.auctionId === subasta)) {
     activeAuctionSessions.delete(cliente);
+  }
+}
+
+async function obtenerCatalogoTiempoReal(pool, auctionId) {
+  const result = await pool.request().input("auctionId", sql.Int, auctionId).query(`
+    SELECT ci.identificador AS itemId, p.descripcionCatalogo, ci.vendido,
+           ci.precioBase, ISNULL(MAX(b.importe), ci.precioBase) AS mejorOferta,
+           COUNT(b.identificador) AS cantidadPujas, MAX(b.fechaHora) AS ultimaPuja,
+           CASE WHEN COUNT(b.identificador)=0 THEN NULL
+                ELSE DATEDIFF(SECOND, GETDATE(), DATEADD(MINUTE, a.duracionItemMinutos, MAX(b.fechaHora)))
+           END AS segundosRestantes
+    FROM CatalogItems ci
+    INNER JOIN Catalogs c ON c.identificador=ci.catalogo
+    INNER JOIN Auctions a ON a.identificador=c.subasta
+    INNER JOIN Products p ON p.identificador=ci.producto
+    LEFT JOIN Bids b ON b.item=ci.identificador
+    WHERE c.subasta=@auctionId
+    GROUP BY ci.identificador, p.descripcionCatalogo, ci.vendido, ci.precioBase,
+             a.duracionItemMinutos
+    ORDER BY ci.identificador
+  `);
+  return result.recordset.map((item) => ({
+    ...item,
+    mejorOferta: Number(item.mejorOferta),
+    segundosRestantes: item.segundosRestantes === null
+      ? null : Math.max(Number(item.segundosRestantes), 0),
+  }));
+}
+
+function emitirEventoSubasta(auctionId, evento) {
+  if (!wss) return;
+  const mensaje = JSON.stringify({ ...evento, subastaId: Number(auctionId), fechaHora: new Date().toISOString() });
+  for (const client of wss.clients) {
+    if (client.readyState === WebSocket.OPEN && Number(client.auctionId) === Number(auctionId)) {
+      client.send(mensaje);
+    }
+  }
+}
+
+async function emitirCatalogoSubasta(auctionId, motivo) {
+  try {
+    const pool = await poolPromise;
+    const lotes = await obtenerCatalogoTiempoReal(pool, Number(auctionId));
+    emitirEventoSubasta(auctionId, { tipo: "catalog-state", motivo, lotes });
+  } catch (error) {
+    console.error(`[WS] No se pudo emitir catálogo de subasta ${auctionId}:`, error.message);
   }
 }
 
@@ -461,6 +510,7 @@ async function cerrarItemAutomatico(pool, itemId, auctionId) {
     .query("UPDATE CatalogItems SET subastado = 'si', vendido = 'si' WHERE identificador = @itemId");
 
   await cerrarSubastaSiSinPendientes(pool, auctionId);
+  await emitirCatalogoSubasta(auctionId, "lote-cerrado");
 
   if (winnerResult.recordset.length === 0) {
     await registrarCompraEmpresaSinPujas(pool, itemId, auctionId);
@@ -1972,18 +2022,6 @@ async function crearPuja(req, res) {
       });
     }
 
-    const estadoVivo = await obtenerEstadoVivo(pool, subastaId);
-    const itemActivoId = Number(estadoVivo?.itemActual?.itemId || 0);
-    if (!itemActivoId || itemActivoId !== Number(itemId)) {
-      return res.status(409).json({
-        error: itemActivoId
-          ? `Solo puedes pujar por el lote activo (#${itemActivoId}). El lote #${itemId} todavía no está habilitado.`
-          : "La subasta no tiene un lote activo disponible para recibir pujas.",
-        itemActivoId: itemActivoId || null,
-        itemSolicitadoId: Number(itemId),
-      });
-    }
-
     const sesion = registrarSesionActiva(clienteId, subastaId);
     if (!sesion.ok) {
       return res.status(sesion.status).json({
@@ -2119,6 +2157,8 @@ async function crearPuja(req, res) {
 
     await registrarAviso(pool, clienteId, "Puja confirmada",
       `Tu oferta de ${item.moneda} ${importeNumerico.toFixed(2)} quedó registrada para el lote #${itemId} de la subasta #${subastaId}.`);
+
+    await emitirCatalogoSubasta(subastaId, "puja-confirmada");
 
     res.status(201).json({
       mensaje: "Puja registrada correctamente",
@@ -3295,6 +3335,7 @@ app.post("/api/admin/auctions/:auctionId/items/:itemId/close", requireEmployee, 
 
       await registrarCompraEmpresaSinPujas(pool, Number(req.params.itemId), Number(req.params.auctionId));
       await cerrarSubastaSiSinPendientes(pool, Number(req.params.auctionId));
+      await emitirCatalogoSubasta(Number(req.params.auctionId), "lote-cerrado");
 
       return res.status(200).json({
         mensaje: "Item cerrado sin pujas. La empresa compra por el valor base.",
@@ -3397,6 +3438,7 @@ app.post("/api/admin/auctions/:auctionId/items/:itemId/close", requireEmployee, 
       `);
 
     await cerrarSubastaSiSinPendientes(pool, Number(req.params.auctionId));
+    await emitirCatalogoSubasta(Number(req.params.auctionId), "lote-cerrado");
 
     await pool
       .request()
@@ -3755,6 +3797,48 @@ app.get("/subastas", async (req, res) => {
    INICIO SERVIDOR
    ============================================================ */
 
-app.listen(PORT, () => {
+const server = http.createServer(app);
+wss = new WebSocketServer({ server, path: "/ws" });
+
+wss.on("connection", async (socket, request) => {
+  try {
+    const url = new URL(request.url, "http://localhost");
+    const auctionId = Number(url.searchParams.get("auctionId"));
+    const clientId = Number(url.searchParams.get("clientId"));
+    const payload = decodificarTokenDemo(String(request.headers.authorization || "").replace(/^Bearer\s+/i, ""));
+    if (!auctionId || !clientId || !payload || Number(payload.sub) !== clientId) {
+      socket.close(1008, "Suscripción inválida");
+      return;
+    }
+
+    socket.auctionId = auctionId;
+    socket.clientId = clientId;
+    socket.isAlive = true;
+    socket.on("pong", () => { socket.isAlive = true; });
+    socket.send(JSON.stringify({ tipo: "connected", subastaId: auctionId }));
+
+    const pool = await poolPromise;
+    const lotes = await obtenerCatalogoTiempoReal(pool, auctionId);
+    socket.send(JSON.stringify({ tipo: "catalog-state", motivo: "conexion-inicial", subastaId: auctionId, lotes }));
+  } catch (error) {
+    socket.close(1011, "No se pudo iniciar la suscripción");
+  }
+});
+
+const heartbeatWebSocket = setInterval(() => {
+  for (const socket of wss.clients) {
+    if (socket.isAlive === false) {
+      socket.terminate();
+      continue;
+    }
+    socket.isAlive = false;
+    socket.ping();
+  }
+}, 25000);
+
+wss.on("close", () => clearInterval(heartbeatWebSocket));
+
+server.listen(PORT, () => {
   console.log(`API Subastas corriendo en http://localhost:${PORT}`);
+  console.log(`WebSocket de subastas disponible en ws://localhost:${PORT}/ws`);
 });

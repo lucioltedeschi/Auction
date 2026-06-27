@@ -29,8 +29,15 @@ import java.net.URL;
 import java.nio.charset.StandardCharsets;
 import java.util.HashSet;
 import java.util.Set;
+import java.util.concurrent.TimeUnit;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
+
+import okhttp3.OkHttpClient;
+import okhttp3.Request;
+import okhttp3.Response;
+import okhttp3.WebSocket;
+import okhttp3.WebSocketListener;
 
 public class AuctionDetailActivity extends AppCompatActivity {
 
@@ -59,6 +66,15 @@ public class AuctionDetailActivity extends AppCompatActivity {
     private volatile boolean escuchandoEventos;
     private HttpURLConnection conexionEventos;
     private double ultimaMejorOfertaViva = -1;
+    private final OkHttpClient webSocketClient = new OkHttpClient.Builder()
+            .pingInterval(20, TimeUnit.SECONDS)
+            .retryOnConnectionFailure(true)
+            .build();
+    private WebSocket webSocket;
+    private volatile boolean actividadDestruida;
+    private final Runnable reconectarWebSocket = () -> {
+        if (!actividadDestruida) conectarWebSocket();
+    };
 
     // Countdown timer
     private volatile int segundosRestantes = 0;
@@ -123,7 +139,8 @@ public class AuctionDetailActivity extends AppCompatActivity {
         // Tap en live panel: scroll al item activo en el catalogo
         View livePanel = findViewById(R.id.livePanel);
         if (livePanel != null) {
-            livePanel.setOnClickListener(v -> scrollToItemActivo());
+            livePanel.setOnClickListener(v -> scrollViewAuction.post(() ->
+                    scrollViewAuction.smoothScrollTo(0, contenedorCatalogo.getTop())));
         }
 
         SharedPreferences prefs = getSharedPreferences("sesion", MODE_PRIVATE);
@@ -150,16 +167,86 @@ public class AuctionDetailActivity extends AppCompatActivity {
         cargarDetalleSubasta();
         cargarCatalogo();
         precargarComprasConocidas();
-        escucharEventosEnVivo();
+        conectarWebSocket();
     }
 
     @Override
     protected void onDestroy() {
+        actividadDestruida = true;
+        mainHandler.removeCallbacks(reconectarWebSocket);
+        if (webSocket != null) webSocket.cancel();
         escuchandoEventos = false;
         countdownHandler.removeCallbacks(countdownRunnable);
         if (conexionEventos != null) conexionEventos.disconnect();
         liberarConexionActiva();
         super.onDestroy();
+    }
+
+    private void conectarWebSocket() {
+        mainHandler.removeCallbacks(reconectarWebSocket);
+        String wsBase = ApiConfig.BASE_URL.replaceFirst("^https://", "wss://")
+                .replaceFirst("^http://", "ws://");
+        Request request = new Request.Builder()
+                .url(wsBase + "/ws?auctionId=" + auctionId + "&clientId=" + userId)
+                .header("Authorization", "Bearer " + token)
+                .build();
+        webSocket = webSocketClient.newWebSocket(request, new WebSocketListener() {
+            @Override public void onOpen(WebSocket socket, Response response) {
+                mainHandler.post(() -> txtMensajeDetalle.setText("Conectado en vivo · múltiples lotes abiertos"));
+            }
+
+            @Override public void onMessage(WebSocket socket, String text) {
+                try {
+                    JSONObject evento = new JSONObject(text);
+                    String tipo = evento.optString("tipo", "");
+                    if ("catalog-state".equals(tipo)) {
+                        JSONArray lotes = evento.optJSONArray("lotes");
+                        int abiertos = 0;
+                        int pujas = 0;
+                        if (lotes != null) {
+                            for (int i = 0; i < lotes.length(); i++) {
+                                JSONObject lote = lotes.optJSONObject(i);
+                                if (lote != null && !"si".equals(lote.optString("vendido"))) abiertos++;
+                                if (lote != null) pujas += lote.optInt("cantidadPujas", 0);
+                            }
+                        }
+                        final int totalAbiertos = abiertos;
+                        final int totalPujas = pujas;
+                        mainHandler.post(() -> {
+                            cargarCatalogo();
+                            txtItemVivo.setText(totalAbiertos + " lotes abiertos simultáneamente");
+                            txtTiempoRestante.setTextSize(22);
+                            txtTiempoRestante.setText("EN VIVO");
+                            txtTiempoRestante.setTextColor(Color.parseColor("#86EFAC"));
+                            txtMejorOfertaVivo.setText(totalPujas + " pujas");
+                            txtPujaMinimaVivo.setText("Por lote");
+                            txtPujaMaximaVivo.setText("Independiente");
+                            txtMensajeDetalle.setText("Ofertas sincronizadas por WebSocket");
+                        });
+                    }
+                } catch (Exception ignored) {
+                }
+            }
+
+            @Override public void onClosing(WebSocket socket, int code, String reason) {
+                socket.close(1000, null);
+            }
+
+            @Override public void onClosed(WebSocket socket, int code, String reason) {
+                programarReconexionWebSocket();
+            }
+
+            @Override public void onFailure(WebSocket socket, Throwable error, Response response) {
+                mainHandler.post(() -> txtMensajeDetalle.setText("Reconectando pujas en vivo..."));
+                programarReconexionWebSocket();
+            }
+        });
+    }
+
+    private void programarReconexionWebSocket() {
+        if (actividadDestruida) return;
+        mainHandler.removeCallbacks(reconectarWebSocket);
+        mainHandler.postDelayed(reconectarWebSocket, 2000);
     }
 
     @Override
@@ -620,11 +707,9 @@ public class AuctionDetailActivity extends AppCompatActivity {
                 double mejorOferta = item.optDouble("mejorOferta", precioBase);
                 double miMejorOferta = item.optDouble("miMejorOferta", 0);
                 String vendido = item.optString("vendido", "no");
-                boolean esItemActivo = String.valueOf(itemId).equals(itemIdVivo);
-
                 View card = crearCardCatalogo(itemId, productId, descripcionCatalogo,
                         descripcionCompleta, historia, artistaDiseniador,
-                        precioBase, comision, mejorOferta, miMejorOferta, vendido, esItemActivo);
+                        precioBase, comision, mejorOferta, miMejorOferta, vendido);
                 card.setTag(itemId); // used for scroll-to
                 contenedorCatalogo.addView(card);
             }
@@ -637,14 +722,13 @@ public class AuctionDetailActivity extends AppCompatActivity {
             int itemId, int productId, String descripcionCatalogo,
             String descripcionCompleta, String historia, String artistaDiseniador,
             double precioBase, double comision, double mejorOferta, double miMejorOferta,
-            String vendido, boolean esItemActivo
+            String vendido
     ) {
         LinearLayout card = new LinearLayout(this);
         card.setOrientation(LinearLayout.VERTICAL);
         card.setPadding(dp(16), dp(16), dp(16), dp(18));
-        // Active item gets the dark premium card, others get light
-        card.setBackgroundResource(esItemActivo ? R.drawable.bg_card_dark_premium : R.drawable.bg_card_premium);
-        card.setElevation(dp(esItemActivo ? 12 : 4));
+        card.setBackgroundResource(R.drawable.bg_card_premium);
+        card.setElevation(dp(4));
 
         LinearLayout.LayoutParams cardParams = new LinearLayout.LayoutParams(
                 LinearLayout.LayoutParams.MATCH_PARENT, LinearLayout.LayoutParams.WRAP_CONTENT);
@@ -661,15 +745,12 @@ public class AuctionDetailActivity extends AppCompatActivity {
         visual.setLayoutParams(visualParams);
 
         TextView status = new TextView(this);
-        if (esItemActivo) {
-            status.setText("EN SUBASTA AHORA - LOTE #" + itemId);
-            status.setTextColor(Color.parseColor("#86EFAC")); // green
-        } else if (vendido.equals("si")) {
+        if (vendido.equals("si")) {
             status.setText("FINALIZADO - LOTE #" + itemId);
             status.setTextColor(Color.parseColor("#FECACA"));
         } else {
-            status.setText("PROXIMO - LOTE #" + itemId);
-            status.setTextColor(Color.WHITE);
+            status.setText("ABIERTO · PUJAS EN VIVO · LOTE #" + itemId);
+            status.setTextColor(Color.parseColor("#86EFAC"));
         }
         status.setTextSize(11);
         status.setTypeface(null, android.graphics.Typeface.BOLD);
@@ -714,7 +795,7 @@ public class AuctionDetailActivity extends AppCompatActivity {
         // DESCRIPCIÓN
         TextView descripcion = new TextView(this);
         descripcion.setText(descripcionCompleta);
-        descripcion.setTextColor(esItemActivo ? Color.parseColor("#D7E3EF") : Color.parseColor("#475569"));
+        descripcion.setTextColor(Color.parseColor("#475569"));
         descripcion.setTextSize(14);
         descripcion.setLineSpacing(dp(3), 1.0f);
         LinearLayout.LayoutParams descParams = new LinearLayout.LayoutParams(
@@ -826,8 +907,8 @@ public class AuctionDetailActivity extends AppCompatActivity {
         security.setLayoutParams(securityParams);
 
         Button btnPujar = new Button(this);
-        if (puedePujar && !vendido.equals("si") && esItemActivo) {
-            btnPujar.setText("PUJAR AHORA");
+        if (puedePujar && !vendido.equals("si")) {
+            btnPujar.setText("PUJAR POR ESTE LOTE");
             btnPujar.setBackgroundResource(R.drawable.bg_button_gold);
             btnPujar.setTextColor(Color.parseColor("#071827"));
             btnPujar.setOnClickListener(v -> {
@@ -841,14 +922,6 @@ public class AuctionDetailActivity extends AppCompatActivity {
                 intent.putExtra("categoria", categoriaSubasta);
                 startActivity(intent);
             });
-        } else if (puedePujar && !vendido.equals("si")) {
-            btnPujar.setText("ESPERANDO TURNO");
-            btnPujar.setBackgroundResource(R.drawable.bg_button_outline);
-            btnPujar.setTextColor(Color.parseColor("#A8872F"));
-            btnPujar.setOnClickListener(v -> FeedbackDialog.info(this,
-                    "Lote todavía no habilitado",
-                    "Solo podés ofertar por el lote que se está rematando ahora. "
-                            + "Este lote quedará habilitado automáticamente cuando llegue su turno."));
         } else {
             btnPujar.setText(vendido.equals("si") ? "ADJUDICADO" : "SOLO VER");
             btnPujar.setBackgroundResource(R.drawable.bg_button_outline);

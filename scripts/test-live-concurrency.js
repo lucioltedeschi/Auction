@@ -1,4 +1,6 @@
+const WebSocket = require("ws");
 const baseUrl = process.env.API_BASE_URL || "https://auct-io-api.onrender.com";
+const wsBase = baseUrl.replace(/^https:/, "wss:").replace(/^http:/, "ws:");
 
 async function login(documento) {
   const response = await fetch(`${baseUrl}/api/auth/login`, {
@@ -10,53 +12,49 @@ async function login(documento) {
   return response.json();
 }
 
-async function firstLiveEvent(token, auctionId) {
-  const controller = new AbortController();
-  const timeout = setTimeout(() => controller.abort(), 15000);
-  try {
-    const response = await fetch(`${baseUrl}/api/auctions/${auctionId}/events`, {
-      headers: { Accept: "text/event-stream", Authorization: `Bearer ${token}` },
-      signal: controller.signal,
-    });
-    if (!response.ok || !response.body) throw new Error(`SSE HTTP ${response.status}`);
-    const reader = response.body.getReader();
-    const decoder = new TextDecoder();
-    let buffer = "";
-    while (true) {
-      const { value, done } = await reader.read();
-      if (done) throw new Error("El stream finalizó sin enviar estado");
-      buffer += decoder.decode(value, { stream: true });
-      const end = buffer.indexOf("\n\n");
-      if (end >= 0) {
-        const line = buffer.slice(0, end).split("\n").find((x) => x.startsWith("data: "));
-        if (line) return JSON.parse(line.slice(6));
-        buffer = buffer.slice(end + 2);
+function firstCatalogState(session, auctionId) {
+  return new Promise((resolve, reject) => {
+    const socket = new WebSocket(
+      `${wsBase}/ws?auctionId=${auctionId}&clientId=${session.usuario.id}`,
+      { headers: { Authorization: `Bearer ${session.token}` } },
+    );
+    const timeout = setTimeout(() => {
+      socket.terminate();
+      reject(new Error("El WebSocket no entregó el catálogo dentro del plazo"));
+    }, 15000);
+    socket.on("message", (raw) => {
+      const event = JSON.parse(String(raw));
+      if (event.tipo === "catalog-state") {
+        clearTimeout(timeout);
+        socket.close();
+        resolve(event);
       }
-    }
-  } finally {
-    clearTimeout(timeout);
-    controller.abort();
-  }
+    });
+    socket.on("error", (error) => {
+      clearTimeout(timeout);
+      reject(error);
+    });
+  });
 }
 
 async function main() {
   const [a, b] = await Promise.all([login("51000001"), login("51000002")]);
   const [stateA, stateB] = await Promise.all([
-    firstLiveEvent(a.token, 7),
-    firstLiveEvent(b.token, 7),
+    firstCatalogState(a, 7),
+    firstCatalogState(b, 7),
   ]);
-  if (stateA.subastaId !== stateB.subastaId
-      || stateA.itemActual?.itemId !== stateB.itemActual?.itemId
-      || Number(stateA.mejorOferta) !== Number(stateB.mejorOferta)) {
-    throw new Error("Los dos clientes recibieron estados diferentes");
+  const snapshotA = stateA.lotes.map((item) => `${item.itemId}:${item.mejorOferta}`).join("|");
+  const snapshotB = stateB.lotes.map((item) => `${item.itemId}:${item.mejorOferta}`).join("|");
+  if (stateA.subastaId !== stateB.subastaId || snapshotA !== snapshotB) {
+    throw new Error("Los dos clientes recibieron catálogos diferentes");
   }
   console.log(JSON.stringify({
     ok: true,
+    transporte: "WebSocket",
     clientesSimultaneos: 2,
     subastaId: stateA.subastaId,
-    itemId: stateA.itemActual?.itemId || null,
-    mejorOferta: stateA.mejorOferta,
-    fase: stateA.fase,
+    lotesSincronizados: stateA.lotes.length,
+    lotesAbiertos: stateA.lotes.filter((item) => item.vendido !== "si").length,
   }));
 }
 

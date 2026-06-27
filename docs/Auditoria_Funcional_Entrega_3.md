@@ -15,8 +15,8 @@ La aplicación cubre el recorrido demostrable de registro, verificación, medios
 | Múltiples medios de pago verificados | Cumple | ABM del cliente, revisión administrativa y selección al pagar. |
 | Categoría de subasta no superior a la del cliente | Cumple | Validación en listado y nuevamente al crear la puja. |
 | Catálogo, precio base y fotografías | Cumple | Catálogo por lotes y galería; consignación exige al menos seis fotos. |
-| Un solo lote habilitado por vez | Cumple | La interfaz muestra Esperando turno y el servidor rechaza cualquier puja sobre un lote no activo. |
-| Puja ascendente y confirmada por servidor | Cumple | El servidor valida lote activo, mejor oferta, mínimo y máximo antes de insertar. |
+| Varios lotes simultáneos por catálogo | Cumple | Todos los lotes no cerrados pueden recibir pujas independientes dentro de una misma subasta. |
+| Puja ascendente y confirmada por servidor | Cumple | El servidor valida mejor oferta, mínimo y máximo de cada lote antes de insertar. |
 | Incremento mínimo 1% y máximo 20% | Cumple | Aplicado sobre precio base respecto de la mejor oferta; excepción oro/platino. |
 | Una sola subasta conectada por cliente | Cumple | Sesión activa; permite cambiar si aún no ofertó y conserva el vínculo si ya pujó. |
 | Moneda única y compatibilidad para USD | Cumple | Solo acepta cuenta bancaria, tarjeta internacional o cheque compatible y verificado. |
@@ -28,7 +28,7 @@ La aplicación cubre el recorrido demostrable de registro, verificación, medios
 | Avisos de acciones relevantes | Cumple | Puja, perfil, medios, consignación, propuestas, adjudicación, pago y multas generan avisos. |
 | Estadísticas del cliente | Cumple | Subastas, lotes, pujas, ganados, importes, consignaciones, avisos y categorías. |
 | ABM administrativo | Cumple | Subastas completas, verificaciones, propuestas, asignación, cierre y multas sin IDs manuales. |
-| Tiempo real | Cumple | SSE cada 2 s con reconexión; actualiza mejor oferta, catálogo, liderazgo e historial sin refrescar. |
+| Tiempo real | Cumple | WebSocket por subasta con reconexión; sincroniza todos los lotes, ofertas y liderazgos sin refrescar. |
 | Video de la subasta | No requerido | La consigna declara expresamente que la transmisión de video queda fuera del alcance. |
 
 ## Integraciones representadas en la demo
