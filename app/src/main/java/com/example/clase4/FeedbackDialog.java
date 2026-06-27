@@ -26,6 +26,28 @@ public class FeedbackDialog {
         mostrar(context, "No se pudo completar", mensajeAmigable(mensaje), R.drawable.ic_status_error, "#991B1B");
     }
 
+    public static void error(Context context, String titulo, String mensaje) {
+        mostrar(context, titulo, mensajeAmigable(mensaje), R.drawable.ic_status_error, "#991B1B");
+    }
+
+    public static void accionError(Context context, String titulo, String mensaje,
+                                   String textoAccion, Runnable accion) {
+        LinearLayout root = crearContenido(context, titulo, mensajeAmigable(mensaje), R.drawable.ic_status_error, "#991B1B");
+        AlertDialog dialog = crearDialogo(context, root);
+        Button button = crearBoton(context, textoAccion, R.drawable.bg_button_gold, "#071827");
+        LinearLayout.LayoutParams params = new LinearLayout.LayoutParams(
+                LinearLayout.LayoutParams.MATCH_PARENT, dp(context, 50));
+        params.setMargins(0, dp(context, 18), 0, 0);
+        button.setLayoutParams(params);
+        button.setOnClickListener(v -> {
+            dialog.dismiss();
+            accion.run();
+        });
+        root.addView(button);
+        dialog.setCancelable(false);
+        mostrarDialogo(dialog);
+    }
+
     public static void info(Context context, String titulo, String mensaje) {
         mostrar(context, titulo, mensaje, R.drawable.ic_status_info, "#A8872F");
     }
@@ -238,7 +260,20 @@ public class FeedbackDialog {
             return base + "\n\nSalí de la subasta actual antes de entrar a otra.";
         }
 
-        return base;
+        if (lower.contains("mayor") || lower.contains("mínima") || lower.contains("minima")
+                || lower.contains("máxima") || lower.contains("maxima") || lower.contains("cambió")) {
+            return base + "\n\nEl precio puede cambiar en tiempo real. Revisá la mejor oferta y los límites mostrados antes de confirmar nuevamente.";
+        }
+
+        if (lower.contains("vendido") || lower.contains("finaliz") || lower.contains("cerrando")) {
+            return base + "\n\nEl reloj del lote llegó a cero o el lote ya fue adjudicado. Podés seguir participando en los demás lotes abiertos.";
+        }
+
+        if (lower.contains("falt") || lower.contains("complet") || lower.contains("válid") || lower.contains("valid")) {
+            return base + "\n\nRevisá los datos señalados en pantalla. Ningún cambio se guardó todavía, por lo que podés corregirlos con seguridad.";
+        }
+
+        return base + "\n\nLa operación no produjo cambios. Revisá la información e intentá nuevamente; si el problema continúa, volvé a la pantalla anterior.";
     }
 
     private static int dp(Context context, int value) {

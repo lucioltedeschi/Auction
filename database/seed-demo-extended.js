@@ -146,6 +146,9 @@ async function seed() {
       ["Coleccionismo & Historia", "en_curso", "comun", "pesos", 0, "21:15", 150],
       ["Movilidad Clásica", "abierta", "platino", "dolares", 14, "17:00", 240],
       ["Música, Cavas & Juegos", "cerrada", "oro", "dolares", -7, "20:00", 120],
+      ["Fotografía & Tecnología", "en_curso", "plata", "pesos", 0, "00:01", 45],
+      ["Relojería & Escritura", "abierta", "oro", "dolares", 0, "00:01", 60],
+      ["Objetos de Autor", "en_curso", "comun", "pesos", 0, "00:01", 30],
     ];
     const auctionIds = [];
 
@@ -173,6 +176,9 @@ async function seed() {
       ["Colección", ["Cámara telemétrica de 1954", "Brújula naval de latón", "Reloj de bolsillo esqueletado", "Globo terráqueo de escritorio"]],
       ["Movilidad", ["Coupé europeo de los años sesenta", "Roadster clásico restaurado", "Motocicleta de colección", "Scooter urbano de época"]],
       ["Lifestyle", ["Guitarra acústica de luthier", "Violín centroeuropeo con estuche", "Lote de vinos de guarda", "Ajedrez artesanal en nogal"]],
+      ["Tecnología", ["Cámara profesional de formato medio", "Tocadiscos de alta fidelidad", "Proyector cinematográfico restaurado", "Consola de audio analógica"]],
+      ["Relojería", ["Cronógrafo suizo de cuerda manual", "Pluma estilográfica de edición limitada", "Reloj de viaje Art Déco", "Set de escritura en plata"]],
+      ["Autor", ["Lámpara escultórica contemporánea", "Banco de madera firmado", "Tapiz geométrico de taller", "Centro de mesa en vidrio soplado"]],
     ];
     const allProducts = [];
 
@@ -343,6 +349,7 @@ async function seed() {
         (SELECT COUNT(*) FROM Products WHERE descripcionCatalogo LIKE '${DEMO_PREFIX}%') AS productosDemo,
         (SELECT COUNT(*) FROM Photos ph INNER JOIN Products p ON p.identificador=ph.producto WHERE p.descripcionCatalogo LIKE '${DEMO_PREFIX}%') AS fotosDemo,
         (SELECT COUNT(*) FROM CatalogItems ci INNER JOIN Products p ON p.identificador=ci.producto WHERE p.descripcionCatalogo LIKE '${DEMO_PREFIX}%') AS lotesDemo,
+        (SELECT COUNT(*) FROM Bids b INNER JOIN CatalogItems ci ON ci.identificador=b.item INNER JOIN Products p ON p.identificador=ci.producto WHERE p.descripcionCatalogo LIKE '${DEMO_PREFIX}%') AS pujasDemo,
         (SELECT COUNT(*) FROM Notifications WHERE titulo LIKE '${DEMO_PREFIX}%') AS avisosDemo
     `);
     console.log(JSON.stringify(summary.recordset[0]));

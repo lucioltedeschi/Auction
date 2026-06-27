@@ -234,9 +234,11 @@ async function obtenerCatalogoTiempoReal(pool, auctionId) {
     SELECT ci.identificador AS itemId, p.descripcionCatalogo, ci.vendido,
            ci.precioBase, ISNULL(MAX(b.importe), ci.precioBase) AS mejorOferta,
            COUNT(b.identificador) AS cantidadPujas, MAX(b.fechaHora) AS ultimaPuja,
-           CASE WHEN COUNT(b.identificador)=0 THEN NULL
-                ELSE DATEDIFF(SECOND, GETDATE(), DATEADD(MINUTE, a.duracionItemMinutos, MAX(b.fechaHora)))
-           END AS segundosRestantes
+           a.duracionItemMinutos,
+           DATEDIFF(SECOND, GETDATE(), DATEADD(MINUTE, a.duracionItemMinutos,
+             COALESCE(MAX(b.fechaHora),
+               CAST(CONVERT(varchar(10), a.fecha, 23) + ' ' + CONVERT(varchar(8), a.hora, 108) AS DATETIME)
+             ))) AS segundosRestantes
     FROM CatalogItems ci
     INNER JOIN Catalogs c ON c.identificador=ci.catalogo
     INNER JOIN Auctions a ON a.identificador=c.subasta
@@ -244,14 +246,41 @@ async function obtenerCatalogoTiempoReal(pool, auctionId) {
     LEFT JOIN Bids b ON b.item=ci.identificador
     WHERE c.subasta=@auctionId
     GROUP BY ci.identificador, p.descripcionCatalogo, ci.vendido, ci.precioBase,
-             a.duracionItemMinutos
+             a.duracionItemMinutos, a.fecha, a.hora
     ORDER BY ci.identificador
   `);
+
+  const historyResult = await pool.request().input("auctionIdHistory", sql.Int, auctionId).query(`
+    WITH Historial AS (
+      SELECT b.item AS itemId, b.importe, b.fechaHora, at.numeroPostor,
+             ROW_NUMBER() OVER (PARTITION BY b.item ORDER BY b.fechaHora DESC, b.identificador DESC) AS posicion
+      FROM Bids b
+      INNER JOIN Attendees at ON at.identificador=b.asistente
+      INNER JOIN CatalogItems ci ON ci.identificador=b.item
+      INNER JOIN Catalogs c ON c.identificador=ci.catalogo
+      WHERE c.subasta=@auctionIdHistory
+    )
+    SELECT itemId, importe, fechaHora, numeroPostor
+    FROM Historial
+    WHERE posicion <= 3
+    ORDER BY itemId, posicion
+  `);
+  const histories = new Map();
+  for (const bid of historyResult.recordset) {
+    const key = Number(bid.itemId);
+    if (!histories.has(key)) histories.set(key, []);
+    histories.get(key).push({
+      importe: Number(bid.importe),
+      fechaHora: bid.fechaHora,
+      numeroPostor: Number(bid.numeroPostor),
+    });
+  }
+
   return result.recordset.map((item) => ({
     ...item,
     mejorOferta: Number(item.mejorOferta),
-    segundosRestantes: item.segundosRestantes === null
-      ? null : Math.max(Number(item.segundosRestantes), 0),
+    segundosRestantes: Math.max(Number(item.segundosRestantes || 0), 0),
+    ultimasPujas: histories.get(Number(item.itemId)) || [],
   }));
 }
 
@@ -631,10 +660,13 @@ async function cerrarLotesVencidosSimultaneos() {
       FROM CatalogItems ci
       INNER JOIN Catalogs c ON c.identificador=ci.catalogo
       INNER JOIN Auctions a ON a.identificador=c.subasta
-      INNER JOIN Bids b ON b.item=ci.identificador
+      LEFT JOIN Bids b ON b.item=ci.identificador
       WHERE ci.vendido='no' AND a.estado IN ('abierta','en_curso')
-      GROUP BY ci.identificador, a.identificador, a.duracionItemMinutos
-      HAVING DATEADD(MINUTE, a.duracionItemMinutos, MAX(b.fechaHora)) <= GETDATE()
+      GROUP BY ci.identificador, a.identificador, a.duracionItemMinutos, a.fecha, a.hora
+      HAVING DATEADD(MINUTE, a.duracionItemMinutos,
+        COALESCE(MAX(b.fechaHora),
+          CAST(CONVERT(varchar(10), a.fecha, 23) + ' ' + CONVERT(varchar(8), a.hora, 108) AS DATETIME)
+        )) <= GETDATE()
     `);
     for (const item of vencidos.recordset) {
       await cerrarItemAutomatico(pool, Number(item.itemId), Number(item.auctionId));
@@ -1784,6 +1816,12 @@ app.get("/api/auctions/:auctionId/catalog", async (req, res) => {
           ci.subastado,
           ci.vendido,
           ISNULL(MAX(b.importe), ci.precioBase) AS mejorOferta,
+          COUNT(b.identificador) AS cantidadPujas,
+          a.duracionItemMinutos,
+          DATEDIFF(SECOND, GETDATE(), DATEADD(MINUTE, a.duracionItemMinutos,
+            COALESCE(MAX(b.fechaHora),
+              CAST(CONVERT(varchar(10), a.fecha, 23) + ' ' + CONVERT(varchar(8), a.hora, 108) AS DATETIME)
+            ))) AS segundosRestantes,
           (SELECT MAX(mb.importe) FROM Bids mb
            INNER JOIN Attendees mat ON mat.identificador=mb.asistente
            WHERE mb.item=ci.identificador AND mat.cliente=@clientId) AS miMejorOferta
@@ -1792,6 +1830,8 @@ app.get("/api/auctions/:auctionId/catalog", async (req, res) => {
           ON c.identificador = ci.catalogo
         INNER JOIN Products p
           ON ci.producto = p.identificador
+        INNER JOIN Auctions a
+          ON a.identificador = c.subasta
         LEFT JOIN Bids b
           ON ci.identificador = b.item
         WHERE c.subasta = @auctionId
@@ -1806,7 +1846,10 @@ app.get("/api/auctions/:auctionId/catalog", async (req, res) => {
           ci.precioBase,
           ci.comision,
           ci.subastado,
-          ci.vendido
+          ci.vendido,
+          a.duracionItemMinutos,
+          a.fecha,
+          a.hora
         ORDER BY ci.identificador
       `);
 
@@ -2005,7 +2048,12 @@ async function crearPuja(req, res) {
           a.identificador AS subastaId,
           a.estado,
           a.categoria,
-          a.moneda
+          a.moneda,
+          a.duracionItemMinutos,
+          DATEDIFF(SECOND, GETDATE(), DATEADD(MINUTE, a.duracionItemMinutos,
+            COALESCE((SELECT MAX(bb.fechaHora) FROM Bids bb WHERE bb.item=ci.identificador),
+              CAST(CONVERT(varchar(10), a.fecha, 23) + ' ' + CONVERT(varchar(8), a.hora, 108) AS DATETIME)
+            ))) AS segundosRestantes
         FROM CatalogItems ci
         INNER JOIN Catalogs c
           ON ci.catalogo = c.identificador
@@ -2031,7 +2079,13 @@ async function crearPuja(req, res) {
 
     if (item.vendido === "si") {
       return res.status(409).json({
-        error: "El ítem ya fue vendido",
+        error: `El lote #${itemId} ya fue adjudicado y no admite nuevas ofertas. Podés continuar en cualquiera de los demás lotes abiertos.`,
+      });
+    }
+
+    if (Number(item.segundosRestantes) <= 0) {
+      return res.status(409).json({
+        error: `El tiempo del lote #${itemId} terminó y el servidor está procesando su adjudicación. No se registró ningún importe.`,
       });
     }
 
@@ -2045,7 +2099,7 @@ async function crearPuja(req, res) {
 
     if (categoriaValor(cliente.categoria) < categoriaValor(item.categoria)) {
       return res.status(403).json({
-        error: "La categoría del cliente no permite pujar en esta subasta",
+        error: `Esta subasta requiere categoría ${item.categoria} y tu cuenta es ${cliente.categoria}. Solicitá una revisión de categoría antes de ofertar.`,
       });
     }
 
@@ -2078,7 +2132,7 @@ async function crearPuja(req, res) {
 
     if (mediosCompatibles <= 0) {
       return res.status(403).json({
-        error: "El cliente no posee un medio de pago verificado compatible con la moneda de la subasta",
+        error: `No tenés un medio de pago verificado compatible con ${item.moneda}. Cargalo en Medios de pago y esperá la aprobación administrativa.`,
       });
     }
 
@@ -2104,7 +2158,7 @@ async function crearPuja(req, res) {
 
     if (importeNumerico <= valorReferencia) {
       return res.status(400).json({
-        error: `La puja debe ser mayor a ${valorReferencia.toFixed(2)}`,
+        error: `Tu oferta debe superar la mejor puja actual de ${item.moneda} ${valorReferencia.toFixed(2)}. El importe no fue registrado.`,
       });
     }
 
@@ -2195,8 +2249,9 @@ async function crearPuja(req, res) {
     await emitirCatalogoSubasta(subastaId, "puja-confirmada");
 
     res.status(201).json({
-      mensaje: "Puja registrada correctamente",
+      mensaje: `Puja registrada por ${item.moneda} ${importeNumerico.toFixed(2)}. El reloj del lote #${itemId} se reinició a ${item.duracionItemMinutos} minutos.`,
       puja: insertBid.recordset[0],
+      relojReiniciadoMinutos: Number(item.duracionItemMinutos),
     });
   } catch (err) {
     res.status(500).json({

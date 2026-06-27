@@ -740,7 +740,8 @@ public class AdminActivity extends AppCompatActivity {
     private LinearLayout buildDialogContainer() {
         LinearLayout container = new LinearLayout(this);
         container.setOrientation(LinearLayout.VERTICAL);
-        container.setPadding(dp(20), dp(8), dp(20), dp(8));
+        container.setPadding(dp(20), dp(16), dp(20), dp(20));
+        container.setBackgroundResource(R.drawable.bg_dialog_premium);
         return container;
     }
 
@@ -928,6 +929,7 @@ public class AdminActivity extends AppCompatActivity {
         LinearLayout container = buildDialogContainer();
         String current = edtAdminProductoId.getText().toString().trim();
         boolean haySeleccion = !current.isEmpty();
+        final int[] productoSeleccionado = {haySeleccion ? Integer.parseInt(current) : 0};
 
         // ── Pending list ─────────────────────────────────────────────────
         if (!haySeleccion && pendientes.length() > 0) {
@@ -966,6 +968,7 @@ public class AdminActivity extends AppCompatActivity {
                     btnItem.setLayoutParams(bp);
                     final int finalPid = pid;
                     btnItem.setOnClickListener(v -> {
+                        productoSeleccionado[0] = finalPid;
                         edtAdminProductoId.setText(String.valueOf(finalPid));
                         if (precio > 0) edtAdminPrecioBase.setText(String.valueOf(precio));
                         else if (sugerido > 0) edtAdminPrecioBase.setText(String.valueOf(sugerido));
@@ -1013,8 +1016,9 @@ public class AdminActivity extends AppCompatActivity {
 
         dialog.setOnShowListener(d -> {
             dialog.getButton(AlertDialog.BUTTON_POSITIVE).setOnClickListener(v -> {
-                String id = edtId.getText().toString().trim();
-                if (id.isEmpty()) { mostrarError("Ingresá el ID."); return; }
+                String id = productoSeleccionado[0] > 0
+                        ? String.valueOf(productoSeleccionado[0]) : edtId.getText().toString().trim();
+                if (id.isEmpty()) { mostrarError("Seleccioná una consignación pendiente antes de enviar la propuesta."); return; }
                 edtAdminProductoId.setText(id);
                 edtAdminPrecioBase.setText(edtPrecio.getText().toString().trim());
                 edtAdminComision.setText(edtComision.getText().toString().trim());
@@ -1023,8 +1027,9 @@ public class AdminActivity extends AppCompatActivity {
                 revisarProducto("propuesta_enviada");
             });
             dialog.getButton(AlertDialog.BUTTON_NEGATIVE).setOnClickListener(v -> {
-                String id = edtId.getText().toString().trim();
-                if (id.isEmpty()) { mostrarError("Ingresá el ID."); return; }
+                String id = productoSeleccionado[0] > 0
+                        ? String.valueOf(productoSeleccionado[0]) : edtId.getText().toString().trim();
+                if (id.isEmpty()) { mostrarError("Seleccioná la consignación que querés rechazar."); return; }
                 edtAdminProductoId.setText(id);
                 edtAdminMotivoRechazo.setText(edtMotivo.getText().toString().trim());
                 dialog.dismiss();

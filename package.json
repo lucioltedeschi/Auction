@@ -10,6 +10,7 @@
     "db:setup:azure": "node database/setup-azure.js",
     "db:verify:azure": "node database/verify-azure.js",
     "db:seed:demo-xl": "node database/seed-demo-extended.js",
+    "db:verify:demo-live": "node scripts/verify-demo-live.js",
     "test:smoke:public": "node scripts/smoke-public.js",
     "test:admin-abm": "node scripts/test-admin-auctions.js",
     "test:live:concurrency": "node scripts/test-live-concurrency.js",

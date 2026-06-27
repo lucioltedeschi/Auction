@@ -1,6 +1,7 @@
 const WebSocket = require("ws");
 const baseUrl = process.env.API_BASE_URL || "https://auct-io-api.onrender.com";
 const wsBase = baseUrl.replace(/^https:/, "wss:").replace(/^http:/, "ws:");
+const auctionId = Number(process.env.TEST_AUCTION_ID || 12);
 
 async function login(documento) {
   const response = await fetch(`${baseUrl}/api/auth/login`, {
@@ -40,13 +41,19 @@ function firstCatalogState(session, auctionId) {
 async function main() {
   const [a, b] = await Promise.all([login("51000001"), login("51000002")]);
   const [stateA, stateB] = await Promise.all([
-    firstCatalogState(a, 8),
-    firstCatalogState(b, 8),
+    firstCatalogState(a, auctionId),
+    firstCatalogState(b, auctionId),
   ]);
   const snapshotA = stateA.lotes.map((item) => `${item.itemId}:${item.mejorOferta}`).join("|");
   const snapshotB = stateB.lotes.map((item) => `${item.itemId}:${item.mejorOferta}`).join("|");
   if (stateA.subastaId !== stateB.subastaId || snapshotA !== snapshotB) {
     throw new Error("Los dos clientes recibieron catálogos diferentes");
+  }
+  if (!stateA.lotes.every((item) => Number.isFinite(item.segundosRestantes))) {
+    throw new Error("Hay lotes sin contador independiente");
+  }
+  if (!stateA.lotes.every((item) => Array.isArray(item.ultimasPujas))) {
+    throw new Error("Hay lotes sin historial resumido de pujas");
   }
   console.log(JSON.stringify({
     ok: true,
@@ -55,6 +62,8 @@ async function main() {
     subastaId: stateA.subastaId,
     lotesSincronizados: stateA.lotes.length,
     lotesAbiertos: stateA.lotes.filter((item) => item.vendido !== "si").length,
+    contadoresIndependientes: stateA.lotes.length,
+    historialesIncluidos: stateA.lotes.filter((item) => item.ultimasPujas.length > 0).length,
   }));
 }
 

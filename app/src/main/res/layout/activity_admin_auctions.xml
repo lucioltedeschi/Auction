@@ -1,5 +1,6 @@
 <?xml version="1.0" encoding="utf-8"?>
 <LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:app="http://schemas.android.com/apk/res-auto"
     android:layout_width="match_parent"
     android:layout_height="match_parent"
     android:background="#F3F0E8"
@@ -21,7 +22,7 @@
             android:contentDescription="Volver al panel interno"
             android:padding="10dp"
             android:src="@drawable/ic_arrow_back"
-            android:tint="#FFFFFF" />
+            app:tint="#FFFFFF" />
 
         <LinearLayout
             android:layout_width="0dp"
@@ -202,6 +203,14 @@
                         android:paddingHorizontal="12dp"
                         android:singleLine="true" />
                 </LinearLayout>
+
+                <TextView
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:layout_marginTop="6dp"
+                    android:text="Los minutos se aplican a cada lote. El reloj inicia con la apertura y vuelve a este valor después de cada puja válida."
+                    android:textColor="#64748B"
+                    android:textSize="11sp" />
 
                 <TextView
                     android:layout_width="match_parent"

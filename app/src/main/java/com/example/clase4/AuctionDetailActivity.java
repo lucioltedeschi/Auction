@@ -28,6 +28,8 @@ import java.net.HttpURLConnection;
 import java.net.URL;
 import java.nio.charset.StandardCharsets;
 import java.util.HashSet;
+import java.util.HashMap;
+import java.util.Map;
 import java.util.Set;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.ExecutorService;
@@ -72,6 +74,25 @@ public class AuctionDetailActivity extends AppCompatActivity {
             .build();
     private WebSocket webSocket;
     private volatile boolean actividadDestruida;
+    private final Map<Integer, LoteEnVivo> estadosLotes = new HashMap<>();
+    private final Map<Integer, TextView> relojesLotes = new HashMap<>();
+    private final Runnable actualizarRelojesLotes = new Runnable() {
+        @Override public void run() {
+            boolean hayRelojesActivos = false;
+            for (Map.Entry<Integer, LoteEnVivo> entry : estadosLotes.entrySet()) {
+                LoteEnVivo lote = entry.getValue();
+                if (!lote.vendido && lote.segundosRestantes > 0) {
+                    lote.segundosRestantes--;
+                    hayRelojesActivos = true;
+                }
+                TextView reloj = relojesLotes.get(entry.getKey());
+                if (reloj != null) actualizarRelojLote(reloj, lote);
+            }
+            if (!actividadDestruida && hayRelojesActivos) {
+                countdownHandler.postDelayed(this, 1000);
+            }
+        }
+    };
     private final Runnable reconectarWebSocket = () -> {
         if (!actividadDestruida) conectarWebSocket();
     };
@@ -177,6 +198,7 @@ public class AuctionDetailActivity extends AppCompatActivity {
         if (webSocket != null) webSocket.cancel();
         escuchandoEventos = false;
         countdownHandler.removeCallbacks(countdownRunnable);
+        countdownHandler.removeCallbacks(actualizarRelojesLotes);
         if (conexionEventos != null) conexionEventos.disconnect();
         liberarConexionActiva();
         super.onDestroy();
@@ -192,7 +214,7 @@ public class AuctionDetailActivity extends AppCompatActivity {
                 .build();
         webSocket = webSocketClient.newWebSocket(request, new WebSocketListener() {
             @Override public void onOpen(WebSocket socket, Response response) {
-                mainHandler.post(() -> txtMensajeDetalle.setText("Conectado en vivo · múltiples lotes abiertos"));
+                mainHandler.post(() -> txtMensajeDetalle.setText("Conexión en vivo activa · importes y relojes se actualizan automáticamente"));
             }
 
             @Override public void onMessage(WebSocket socket, String text) {
@@ -201,27 +223,17 @@ public class AuctionDetailActivity extends AppCompatActivity {
                     String tipo = evento.optString("tipo", "");
                     if ("catalog-state".equals(tipo)) {
                         JSONArray lotes = evento.optJSONArray("lotes");
-                        int abiertos = 0;
-                        int pujas = 0;
-                        if (lotes != null) {
-                            for (int i = 0; i < lotes.length(); i++) {
-                                JSONObject lote = lotes.optJSONObject(i);
-                                if (lote != null && !"si".equals(lote.optString("vendido"))) abiertos++;
-                                if (lote != null) pujas += lote.optInt("cantidadPujas", 0);
-                            }
-                        }
-                        final int totalAbiertos = abiertos;
-                        final int totalPujas = pujas;
                         mainHandler.post(() -> {
+                            int[] resumen = actualizarEstadosLotes(lotes);
                             cargarCatalogo();
-                            txtItemVivo.setText(totalAbiertos + " lotes abiertos simultáneamente");
-                            txtTiempoRestante.setTextSize(22);
-                            txtTiempoRestante.setText("EN VIVO");
+                            txtItemVivo.setText("Sala sincronizada en tiempo real");
+                            txtTiempoRestante.setTextSize(18);
+                            txtTiempoRestante.setText("CONECTADO");
                             txtTiempoRestante.setTextColor(Color.parseColor("#86EFAC"));
-                            txtMejorOfertaVivo.setText(totalPujas + " pujas");
-                            txtPujaMinimaVivo.setText("Por lote");
-                            txtPujaMaximaVivo.setText("Independiente");
-                            txtMensajeDetalle.setText("Ofertas sincronizadas por WebSocket");
+                            txtMejorOfertaVivo.setText(resumen[0] + " abiertos");
+                            txtPujaMinimaVivo.setText(resumen[1] + " pujas");
+                            txtPujaMaximaVivo.setText("Por lote");
+                            txtMensajeDetalle.setText("Cada lote tiene reloj e historial propios. Una nueva puja reinicia sólo su contador.");
                         });
                     }
                 } catch (Exception ignored) {
@@ -247,6 +259,59 @@ public class AuctionDetailActivity extends AppCompatActivity {
         if (actividadDestruida) return;
         mainHandler.removeCallbacks(reconectarWebSocket);
         mainHandler.postDelayed(reconectarWebSocket, 2000);
+    }
+
+    private int[] actualizarEstadosLotes(JSONArray lotes) {
+        int abiertos = 0;
+        int pujas = 0;
+        if (lotes != null) {
+            for (int i = 0; i < lotes.length(); i++) {
+                JSONObject json = lotes.optJSONObject(i);
+                if (json == null) continue;
+                int itemId = json.optInt("itemId", 0);
+                if (itemId <= 0) continue;
+                LoteEnVivo lote = new LoteEnVivo();
+                lote.vendido = "si".equals(json.optString("vendido", "no"));
+                lote.segundosRestantes = Math.max(json.optInt("segundosRestantes", 0), 0);
+                lote.duracionMinutos = Math.max(json.optInt("duracionItemMinutos", 0), 0);
+                lote.cantidadPujas = Math.max(json.optInt("cantidadPujas", 0), 0);
+                lote.ultimasPujas = json.optJSONArray("ultimasPujas");
+                estadosLotes.put(itemId, lote);
+                if (!lote.vendido) abiertos++;
+                pujas += lote.cantidadPujas;
+            }
+        }
+        countdownHandler.removeCallbacks(actualizarRelojesLotes);
+        countdownHandler.postDelayed(actualizarRelojesLotes, 1000);
+        return new int[]{abiertos, pujas};
+    }
+
+    private void actualizarRelojLote(TextView view, LoteEnVivo lote) {
+        if (lote.vendido) {
+            view.setText("LOTE FINALIZADO");
+            view.setTextColor(Color.parseColor("#64748B"));
+            return;
+        }
+        if (lote.segundosRestantes <= 0) {
+            view.setText("CERRANDO LOTE…");
+            view.setTextColor(Color.parseColor("#EF4444"));
+            return;
+        }
+        int horas = lote.segundosRestantes / 3600;
+        int minutos = (lote.segundosRestantes % 3600) / 60;
+        int segundos = lote.segundosRestantes % 60;
+        view.setText(horas > 0
+                ? String.format(java.util.Locale.getDefault(), "%02d:%02d:%02d", horas, minutos, segundos)
+                : String.format(java.util.Locale.getDefault(), "%02d:%02d", minutos, segundos));
+        view.setTextColor(Color.parseColor(lote.segundosRestantes <= 30 ? "#DC2626" : "#A8872F"));
+    }
+
+    private static class LoteEnVivo {
+        int segundosRestantes;
+        int duracionMinutos;
+        int cantidadPujas;
+        boolean vendido;
+        JSONArray ultimasPujas;
     }
 
     @Override
@@ -280,13 +345,14 @@ public class AuctionDetailActivity extends AppCompatActivity {
 
                 JSONObject json = new JSONObject(leerRespuesta(connection.getErrorStream()));
                 String error = json.optString("error", "No se pudo ingresar a la subasta.");
-                mainHandler.post(() -> new android.app.AlertDialog.Builder(this)
-                        .setTitle("Subasta activa")
-                        .setMessage(error)
-                        .setPositiveButton("Entendido", (d, w) -> finish())
-                        .show());
+                mainHandler.post(() -> FeedbackDialog.accionError(this,
+                        "No podés ingresar a esta subasta",
+                        error,
+                        "VOLVER A SUBASTAS",
+                        this::finish));
             } catch (Exception e) {
-                mainHandler.post(() -> txtMensajeDetalle.setText("No se pudo registrar la conexion activa."));
+                mainHandler.post(() -> txtMensajeDetalle.setText(
+                        "No pudimos validar tu ingreso. La sala seguirá reconectando; si persiste, volvé a Subastas."));
             } finally {
                 if (connection != null) connection.disconnect();
             }
@@ -688,11 +754,12 @@ public class AuctionDetailActivity extends AppCompatActivity {
 
     private void mostrarCatalogo(JSONArray catalogo) {
         contenedorCatalogo.removeAllViews();
+        relojesLotes.clear();
         if (catalogo.length() == 0) {
             txtMensajeDetalle.setText("No hay ítems cargados para esta subasta.");
             return;
         }
-        txtMensajeDetalle.setText(catalogo.length() + " lotes en catálogo");
+        txtMensajeDetalle.setText(catalogo.length() + " lotes en catálogo · cada reloj es independiente y se reinicia sólo con una puja de ese lote");
         try {
             for (int i = 0; i < catalogo.length(); i++) {
                 JSONObject item = catalogo.getJSONObject(i);
@@ -707,6 +774,14 @@ public class AuctionDetailActivity extends AppCompatActivity {
                 double mejorOferta = item.optDouble("mejorOferta", precioBase);
                 double miMejorOferta = item.optDouble("miMejorOferta", 0);
                 String vendido = item.optString("vendido", "no");
+                if (!estadosLotes.containsKey(itemId)) {
+                    LoteEnVivo inicial = new LoteEnVivo();
+                    inicial.vendido = "si".equals(vendido);
+                    inicial.segundosRestantes = Math.max(item.optInt("segundosRestantes", 0), 0);
+                    inicial.duracionMinutos = Math.max(item.optInt("duracionItemMinutos", 0), 0);
+                    inicial.cantidadPujas = Math.max(item.optInt("cantidadPujas", 0), 0);
+                    estadosLotes.put(itemId, inicial);
+                }
                 View card = crearCardCatalogo(itemId, productId, descripcionCatalogo,
                         descripcionCompleta, historia, artistaDiseniador,
                         precioBase, comision, mejorOferta, miMejorOferta, vendido);
@@ -836,6 +911,52 @@ public class AuctionDetailActivity extends AppCompatActivity {
         metricsRow.addView(bidBox);
         metricsRow.addView(baseBox);
 
+        LoteEnVivo estadoVivo = estadosLotes.get(itemId);
+        if (estadoVivo == null) {
+            estadoVivo = new LoteEnVivo();
+            estadoVivo.vendido = vendido.equals("si");
+        }
+        final int duracionLoteMinutos = estadoVivo.duracionMinutos;
+
+        LinearLayout timerPanel = new LinearLayout(this);
+        timerPanel.setOrientation(LinearLayout.VERTICAL);
+        timerPanel.setPadding(dp(16), dp(13), dp(16), dp(13));
+        timerPanel.setBackgroundResource(R.drawable.bg_metric_box);
+        LinearLayout.LayoutParams timerParams = new LinearLayout.LayoutParams(
+                LinearLayout.LayoutParams.MATCH_PARENT, LinearLayout.LayoutParams.WRAP_CONTENT);
+        timerParams.setMargins(0, dp(12), 0, 0);
+        timerPanel.setLayoutParams(timerParams);
+
+        TextView timerLabel = new TextView(this);
+        timerLabel.setText("TIEMPO RESTANTE DEL LOTE #" + itemId);
+        timerLabel.setTextColor(Color.parseColor("#475569"));
+        timerLabel.setTextSize(10);
+        timerLabel.setTypeface(null, android.graphics.Typeface.BOLD);
+        timerLabel.setLetterSpacing(0.07f);
+
+        TextView timerValue = new TextView(this);
+        timerValue.setTextSize(28);
+        timerValue.setTypeface(null, android.graphics.Typeface.BOLD);
+        timerValue.setContentDescription("Tiempo restante del lote " + itemId);
+        actualizarRelojLote(timerValue, estadoVivo);
+        relojesLotes.put(itemId, timerValue);
+
+        TextView timerHelp = new TextView(this);
+        String duracion = estadoVivo.duracionMinutos > 0
+                ? estadoVivo.duracionMinutos + " min"
+                : "la duración configurada";
+        timerHelp.setText("El reloj parte de " + duracion
+                + " al abrirse el lote y vuelve a ese valor después de cada puja válida.");
+        timerHelp.setTextColor(Color.parseColor("#64748B"));
+        timerHelp.setTextSize(11);
+        timerHelp.setLineSpacing(dp(2), 1f);
+
+        timerPanel.addView(timerLabel);
+        timerPanel.addView(timerValue);
+        timerPanel.addView(timerHelp);
+
+        LinearLayout historyPanel = crearHistorialPujas(estadoVivo);
+
         TextView miParticipacion = new TextView(this);
         if (miMejorOferta > 0) {
             boolean liderando = miMejorOferta >= mejorOferta;
@@ -920,6 +1041,7 @@ public class AuctionDetailActivity extends AppCompatActivity {
                 intent.putExtra("precioBase", precioBase);
                 intent.putExtra("mejorOferta", mejorOferta);
                 intent.putExtra("categoria", categoriaSubasta);
+                intent.putExtra("duracionMinutos", duracionLoteMinutos);
                 startActivity(intent);
             });
         } else {
@@ -939,12 +1061,66 @@ public class AuctionDetailActivity extends AppCompatActivity {
         card.addView(fotoProducto);
         card.addView(descripcion);
         card.addView(metricsRow);
+        card.addView(timerPanel);
+        card.addView(historyPanel);
         card.addView(miParticipacion);
         card.addView(infoPanel);
         card.addView(security);
         card.addView(btnPujar);
 
         return card;
+    }
+
+    private LinearLayout crearHistorialPujas(LoteEnVivo lote) {
+        LinearLayout panel = new LinearLayout(this);
+        panel.setOrientation(LinearLayout.VERTICAL);
+        panel.setPadding(dp(16), dp(14), dp(16), dp(14));
+        panel.setBackgroundResource(R.drawable.bg_card_dark_premium);
+        LinearLayout.LayoutParams params = new LinearLayout.LayoutParams(
+                LinearLayout.LayoutParams.MATCH_PARENT, LinearLayout.LayoutParams.WRAP_CONTENT);
+        params.setMargins(0, dp(10), 0, 0);
+        panel.setLayoutParams(params);
+
+        TextView title = new TextView(this);
+        title.setText("ÚLTIMAS OFERTAS");
+        title.setTextColor(Color.parseColor("#A8872F"));
+        title.setTextSize(10);
+        title.setTypeface(null, android.graphics.Typeface.BOLD);
+        title.setLetterSpacing(0.08f);
+        panel.addView(title);
+
+        JSONArray ofertas = lote.ultimasPujas;
+        if (ofertas == null || ofertas.length() == 0) {
+            TextView empty = new TextView(this);
+            empty.setText("Todavía no hay pujas. La primera oferta puede ser la tuya.");
+            empty.setTextColor(Color.parseColor("#D7E3EF"));
+            empty.setTextSize(12);
+            empty.setPadding(0, dp(8), 0, 0);
+            panel.addView(empty);
+            return panel;
+        }
+
+        for (int i = 0; i < Math.min(3, ofertas.length()); i++) {
+            JSONObject oferta = ofertas.optJSONObject(i);
+            if (oferta == null) continue;
+            TextView row = new TextView(this);
+            row.setText("$" + String.format(java.util.Locale.getDefault(), "%,.2f", oferta.optDouble("importe", 0))
+                    + "  ·  Postor #" + oferta.optInt("numeroPostor", 0)
+                    + "  ·  " + formatearHoraPuja(oferta.optString("fechaHora", "")));
+            row.setTextColor(i == 0 ? Color.WHITE : Color.parseColor("#CBD5E1"));
+            row.setTextSize(i == 0 ? 13 : 12);
+            if (i == 0) row.setTypeface(null, android.graphics.Typeface.BOLD);
+            row.setPadding(0, dp(8), 0, 0);
+            panel.addView(row);
+        }
+        return panel;
+    }
+
+    private String formatearHoraPuja(String raw) {
+        if (raw == null || raw.isEmpty()) return "recién";
+        int t = raw.indexOf('T');
+        String hora = t >= 0 && raw.length() >= t + 6 ? raw.substring(t + 1, t + 6) : raw;
+        return hora + " hs";
     }
 
     // ── SCROLL TO ACTIVE ITEM ────────────────────────────────────────────────────
@@ -1072,56 +1248,14 @@ public class AuctionDetailActivity extends AppCompatActivity {
     }
 
     private void mostrarModalGanador() {
-        float density = getResources().getDisplayMetrics().density;
-        int pad = (int)(28 * density);
-
-        android.widget.LinearLayout root = new android.widget.LinearLayout(this);
-        root.setOrientation(android.widget.LinearLayout.VERTICAL);
-        root.setPadding(pad, pad, pad, (int)(16 * density));
-        root.setGravity(android.view.Gravity.CENTER);
-
-        android.widget.TextView icon = new android.widget.TextView(this);
-        icon.setText("OK");
-        icon.setTextSize(60);
-        icon.setGravity(android.view.Gravity.CENTER);
-
-        android.widget.TextView title = new android.widget.TextView(this);
-        title.setText("Ganaste el lote");
-        title.setTextSize(22);
-        title.setTextColor(Color.parseColor("#071827"));
-        title.setTypeface(null, android.graphics.Typeface.BOLD);
-        title.setGravity(android.view.Gravity.CENTER);
-        android.widget.LinearLayout.LayoutParams tp = new android.widget.LinearLayout.LayoutParams(
-                android.widget.LinearLayout.LayoutParams.MATCH_PARENT,
-                android.widget.LinearLayout.LayoutParams.WRAP_CONTENT);
-        tp.setMargins(0, (int)(10 * density), 0, 0);
-        title.setLayoutParams(tp);
-
-        android.widget.TextView msg = new android.widget.TextView(this);
-        msg.setText("El lote fue adjudicado a tu nombre. Completá el pago dentro de las próximas 72 horas para evitar una multa del 10%.");
-        msg.setTextSize(14);
-        msg.setTextColor(Color.parseColor("#475569"));
-        msg.setGravity(android.view.Gravity.CENTER);
-        msg.setLineSpacing(4, 1.0f);
-        android.widget.LinearLayout.LayoutParams mp = new android.widget.LinearLayout.LayoutParams(
-                android.widget.LinearLayout.LayoutParams.MATCH_PARENT,
-                android.widget.LinearLayout.LayoutParams.WRAP_CONTENT);
-        mp.setMargins(0, (int)(8 * density), 0, 0);
-        msg.setLayoutParams(mp);
-
-        root.addView(icon);
-        root.addView(title);
-        root.addView(msg);
-
-        new android.app.AlertDialog.Builder(this)
-                .setView(root)
-                .setCancelable(false)
-                .setPositiveButton("VER COMPRAS", (d, w) -> {
+        FeedbackDialog.accionExitosa(this,
+                "Ganaste el lote",
+                "El lote fue adjudicado a tu nombre. Elegí un medio de pago verificado y completá la operación dentro de las próximas 72 horas para evitar la multa reglamentaria del 10%.",
+                "VER COMPRAS Y PAGAR",
+                () -> {
                     Intent intent = new Intent(AuctionDetailActivity.this, PurchasesActivity.class);
                     startActivity(intent);
-                })
-                .setNegativeButton("Seguir mirando", null)
-                .show();
+                });
     }
 
     // ── HELPERS ───────────────────────────────────────────────────────────────────

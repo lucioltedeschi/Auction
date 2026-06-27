@@ -56,6 +56,7 @@ public class BidActivity extends AppCompatActivity {
     private double mejorOferta;
     private double pujaMinima;
     private Double pujaMaxima;
+    private int duracionMinutos;
 
     private final ExecutorService executor = Executors.newSingleThreadExecutor();
     private final Handler mainHandler = new Handler(Looper.getMainLooper());
@@ -95,6 +96,7 @@ public class BidActivity extends AppCompatActivity {
         if (categoriaSubasta == null) categoriaSubasta = "";
         precioBase = getIntent().getDoubleExtra("precioBase", 0);
         mejorOferta = getIntent().getDoubleExtra("mejorOferta", 0);
+        duracionMinutos = getIntent().getIntExtra("duracionMinutos", 0);
 
         mostrarDatosItem();
         cargarFotoProducto();
@@ -122,7 +124,9 @@ public class BidActivity extends AppCompatActivity {
         txtDatosItem.setText(
                 "Precio base: $" + String.format("%.2f", precioBase) + "\n" +
                 "Mejor oferta actual: $" + String.format("%.2f", mejorOferta) + "\n" +
-                "Categoría: " + categoriaSubasta
+                "Categoría: " + categoriaSubasta + "\n" +
+                "Reloj: cada puja válida reinicia "
+                        + (duracionMinutos > 0 ? duracionMinutos + " minutos" : "el tiempo configurado del lote")
         );
 
         if (pujaMaxima == null) {
@@ -236,7 +240,9 @@ public class BidActivity extends AppCompatActivity {
     private void mostrarModalExito(String mensaje) {
         FeedbackDialog.accionExitosa(this,
                 "Puja recibida",
-                mensaje + "\n\nVolvé al catálogo para seguir en vivo este lote y todos los demás artículos por los que ofertaste.",
+                mensaje + "\n\nEl reloj de este lote volvió a "
+                        + (duracionMinutos > 0 ? duracionMinutos + " minutos" : "su duración configurada")
+                        + ". Volvé al catálogo para seguirlo en vivo junto con tus otros lotes.",
                 "VOLVER AL CATÁLOGO",
                 this::finish);
     }
@@ -254,7 +260,7 @@ public class BidActivity extends AppCompatActivity {
             titulo = "No se pudo registrar";
         }
 
-        FeedbackDialog.error(this, titulo + "\n\n" + error);
+        FeedbackDialog.error(this, titulo, error);
     }
 
     private View construirVistaModal(String icono, String iconColor, String titulo, String mensaje) {

@@ -21,14 +21,15 @@ La aplicación cubre el recorrido demostrable de registro, verificación, medios
 | Una sola subasta conectada por cliente | Cumple | Sesión activa; permite cambiar si aún no ofertó y conserva el vínculo si ya pujó. |
 | Moneda única y compatibilidad para USD | Cumple | Solo acepta cuenta bancaria, tarjeta internacional o cheque compatible y verificado. |
 | Límite de cheque certificado | Cumple | La puja y el cierre controlan monto disponible; se descuenta al adjudicar. |
-| Conservación de todas las pujas | Cumple | Historial persistente por lote, ordenado por fecha/hora. |
-| Lote sin ofertas comprado por empresa | Cumple | Cierre automático al precio base y aviso al consignante. |
+| Conservación de todas las pujas | Cumple | Historial persistente por lote; cada tarjeta muestra además las tres ofertas más recientes sin exponer identidad. |
+| Temporizador por lote | Cumple | Cada lote corre en forma independiente: comienza al abrir y una puja válida reinicia únicamente ese reloj según `duracionItemMinutos`. |
+| Lote sin ofertas comprado por empresa | Cumple | Al vencer el reloj desde la apertura, se cierra automáticamente al precio base y se avisa al consignante. |
 | Venta, comisión, envío y retiro personal | Cumple | Registro de compra con desglose; el pago permite elegir medio. |
 | Impago, plazo 72 h y multa 10% | Cumple | Bloqueo de nuevas pujas por vencimiento y opción administrativa automática del 10%. |
 | Avisos de acciones relevantes | Cumple | Puja, perfil, medios, consignación, propuestas, adjudicación, pago y multas generan avisos. |
 | Estadísticas del cliente | Cumple | Subastas, lotes, pujas, ganados, importes, consignaciones, avisos y categorías. |
 | ABM administrativo | Cumple | Subastas completas, verificaciones, propuestas, asignación, cierre y multas sin IDs manuales. |
-| Tiempo real | Cumple | WebSocket por subasta con reconexión; sincroniza todos los lotes, ofertas y liderazgos sin refrescar. |
+| Tiempo real | Cumple | WebSocket por subasta con reconexión; sincroniza relojes, últimas ofertas, importes y liderazgos de todos los lotes sin refrescar. |
 | Video de la subasta | No requerido | La consigna declara expresamente que la transmisión de video queda fuera del alcance. |
 
 ## Integraciones representadas en la demo
@@ -42,3 +43,11 @@ La emisión real de pólizas, el correo transaccional, la acreditación bancaria
 - Un medio no verificado no habilita pujas ni pagos.
 - Un cliente con multa o compra vencida no puede volver a pujar.
 - El historial ya no agrupa varios artículos de una misma subasta: cada lote se visualiza por separado.
+- Una puja vencida se rechaza también en el servidor, aunque la pantalla del usuario todavía no haya recibido el cierre.
+
+## Escenario de prueba actualizado
+
+Azure contiene 9 subastas demo, 36 lotes, 252 fotografías y más de 110 pujas. El escenario
+en vivo recomendado es la subasta `Fotografía & Tecnología` (45 minutos por lote): la prueba
+automática confirmó dos clientes simultáneos, cuatro contadores independientes, cuatro
+historiales y el reinicio del reloj después de una puja.

@@ -221,7 +221,7 @@
                         android:layout_height="wrap_content"
                         android:layout_marginLeft="10dp"
                         android:layout_weight="1"
-                        android:text="ÍTEM EN SUBASTA AHORA"
+                        android:text="ESTADO DE LA SALA"
                         android:textColor="#A8872F"
                         android:textSize="10sp"
                         android:textStyle="bold"
@@ -256,7 +256,7 @@
                         <TextView
                             android:layout_width="wrap_content"
                             android:layout_height="wrap_content"
-                            android:text="TIEMPO RESTANTE"
+                            android:text="CONEXIÓN"
                             android:textColor="#9CA3AF"
                             android:textSize="9sp"
                             android:textStyle="bold"
@@ -269,7 +269,7 @@
                             android:layout_marginTop="2dp"
                             android:text="--:--"
                             android:textColor="#A8872F"
-                            android:textSize="44sp"
+                            android:textSize="18sp"
                             android:textStyle="bold" />
 
                     </LinearLayout>
@@ -283,7 +283,7 @@
                         <TextView
                             android:layout_width="wrap_content"
                             android:layout_height="wrap_content"
-                            android:text="MEJOR OFERTA"
+                            android:text="LOTES DISPONIBLES"
                             android:textColor="#9CA3AF"
                             android:textSize="9sp"
                             android:textStyle="bold"
@@ -296,7 +296,7 @@
                             android:layout_marginTop="2dp"
                             android:text="$—"
                             android:textColor="#FFFFFF"
-                            android:textSize="26sp"
+                            android:textSize="18sp"
                             android:textStyle="bold" />
 
                     </LinearLayout>
@@ -321,7 +321,7 @@
                         <TextView
                             android:layout_width="wrap_content"
                             android:layout_height="wrap_content"
-                            android:text="PUJA MÍNIMA"
+                            android:text="ACTIVIDAD TOTAL"
                             android:textColor="#A8872F"
                             android:textSize="9sp"
                             android:textStyle="bold"
@@ -351,7 +351,7 @@
                         <TextView
                             android:layout_width="wrap_content"
                             android:layout_height="wrap_content"
-                            android:text="PUJA MÁXIMA"
+                            android:text="MODALIDAD"
                             android:textColor="#A8872F"
                             android:textSize="9sp"
                             android:textStyle="bold"

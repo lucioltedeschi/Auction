@@ -5,10 +5,10 @@ El entorno remoto incluye un set idempotente pensado para una demostración exte
 ## Contenido incorporado
 
 - 8 clientes adicionales activos, con categorías común, plata, oro y platino.
-- 6 subastas temáticas en estados `programada`, `abierta`, `en_curso` y `cerrada`.
-- 30 productos completos y 24 lotes publicados.
-- 180 fotografías optimizadas almacenadas como `varbinary(MAX)`.
-- Asistentes, pujas progresivas, ganadores, compras pagadas y pendientes.
+- 9 subastas temáticas en estados `programada`, `abierta`, `en_curso` y `cerrada`.
+- 42 productos completos y 36 lotes publicados.
+- 252 fotografías optimizadas almacenadas como `varbinary(MAX)`.
+- Más de 110 pujas progresivas, asistentes, ganadores, compras pagadas y pendientes.
 - Medios de pago verificados y uno pendiente para revisión interna.
 - Multas pagadas y pendientes.
 - 32 notificaciones, con avisos leídos y no leídos.
@@ -36,10 +36,14 @@ Todos usan clave `1234`:
 ```powershell
 npm.cmd run db:seed:demo-xl
 npm.cmd run db:verify:azure
+npm.cmd run db:verify:demo-live
 ```
 
 El proceso es idempotente y transaccional: puede repetirse sin duplicar registros y,
 si falla una dependencia, revierte la ejecución completa.
+
+Las subastas `Fotografía & Tecnología`, `Relojería & Escritura` y `Objetos de Autor`
+constituyen el escenario nuevo: tienen cuatro lotes y al menos doce pujas cada una.
 
 ## Administración
 
