@@ -472,8 +472,8 @@ async function obtenerEstadoVivo(pool, auctionId) {
     pujaMaxima: limites.pujaMaxima === null ? null : Number(limites.pujaMaxima.toFixed(2)),
     segundosRestantes: segundos,
     duracionItemMinutos: estado.duracionItemMinutos,
-    mecanismoTiempoReal: "SSE",
-    eventosUrl: `/api/auctions/${auctionId}/events`,
+    mecanismoTiempoReal: "WebSocket",
+    eventosUrl: `/ws?auctionId=${auctionId}`,
   };
 }
 
@@ -504,10 +504,11 @@ async function cerrarItemAutomatico(pool, itemId, auctionId) {
     `);
 
   // Mark item as closed
-  await pool
+  const cierre = await pool
     .request()
     .input("itemId", sql.Int, itemId)
-    .query("UPDATE CatalogItems SET subastado = 'si', vendido = 'si' WHERE identificador = @itemId");
+    .query("UPDATE CatalogItems SET subastado = 'si', vendido = 'si' WHERE identificador = @itemId AND vendido = 'no'");
+  if (!cierre.rowsAffected[0]) return;
 
   await cerrarSubastaSiSinPendientes(pool, auctionId);
   await emitirCatalogoSubasta(auctionId, "lote-cerrado");
@@ -617,6 +618,32 @@ function base64ABuffer(valor) {
   if (!valor) return null;
   const limpio = String(valor).includes(",") ? String(valor).split(",").pop() : String(valor);
   return Buffer.from(limpio, "base64");
+}
+
+let procesandoCierresSimultaneos = false;
+async function cerrarLotesVencidosSimultaneos() {
+  if (procesandoCierresSimultaneos) return;
+  procesandoCierresSimultaneos = true;
+  try {
+    const pool = await poolPromise;
+    const vencidos = await pool.request().query(`
+      SELECT ci.identificador AS itemId, a.identificador AS auctionId
+      FROM CatalogItems ci
+      INNER JOIN Catalogs c ON c.identificador=ci.catalogo
+      INNER JOIN Auctions a ON a.identificador=c.subasta
+      INNER JOIN Bids b ON b.item=ci.identificador
+      WHERE ci.vendido='no' AND a.estado IN ('abierta','en_curso')
+      GROUP BY ci.identificador, a.identificador, a.duracionItemMinutos
+      HAVING DATEADD(MINUTE, a.duracionItemMinutos, MAX(b.fechaHora)) <= GETDATE()
+    `);
+    for (const item of vencidos.recordset) {
+      await cerrarItemAutomatico(pool, Number(item.itemId), Number(item.auctionId));
+    }
+  } catch (error) {
+    console.error("[REALTIME] Error verificando cierres simultáneos:", error.message);
+  } finally {
+    procesandoCierresSimultaneos = false;
+  }
 }
 
 async function registrarAviso(pool, cliente, titulo, mensaje) {
@@ -1658,20 +1685,6 @@ app.get("/api/auctions/:auctionId/events", async (req, res) => {
 
       let estado = await obtenerEstadoVivo(pool, req.params.auctionId);
 
-      // Auto-close the item ONLY when its bidding window has expired.
-      // En fase "previa" (cuenta hasta el inicio) o "esperando_oferta"
-      // (sin ofertas, segundosRestantes = null) NO se debe cerrar el item.
-      if (
-        estado &&
-        estado.fase === "en_puja" &&
-        estado.segundosRestantes !== null &&
-        estado.segundosRestantes <= 0
-      ) {
-        await cerrarItemAutomatico(pool, estado.itemActual.itemId, req.params.auctionId);
-        // Re-fetch so the SSE sends the next unsold item (or null if auction is over)
-        estado = await obtenerEstadoVivo(pool, req.params.auctionId);
-      }
-
       if (!estado) {
         // No items found — check if auction hasn't started yet or is truly finished
         const auctionCheck = await pool
@@ -2149,11 +2162,32 @@ async function crearPuja(req, res) {
       .input("asistenteId", sql.Int, asistenteId)
       .input("itemId", sql.Int, itemId)
       .input("importe", sql.Decimal(18, 2), importeNumerico)
+      .input("precioBasePuja", sql.Decimal(18, 2), precioBase)
+      .input("categoriaPremium", sql.Bit,
+        item.categoria === "oro" || item.categoria === "platino" ? 1 : 0)
       .query(`
         INSERT INTO Bids (asistente, item, importe, fechaHora, ganador)
         OUTPUT INSERTED.identificador, INSERTED.importe, INSERTED.fechaHora
-        VALUES (@asistenteId, @itemId, @importe, GETDATE(), 'no')
+        SELECT @asistenteId, @itemId, @importe, GETDATE(), 'no'
+        FROM (
+          SELECT CASE WHEN ISNULL(MAX(importe), 0) > 0
+                 THEN ISNULL(MAX(importe), 0) ELSE @precioBasePuja END AS referencia
+          FROM Bids WITH (UPDLOCK, HOLDLOCK)
+          WHERE item=@itemId
+        ) actual
+        WHERE @importe > actual.referencia
+          AND (
+            @categoriaPremium=1
+            OR (@importe >= actual.referencia + @precioBasePuja*0.01
+                AND @importe <= actual.referencia + @precioBasePuja*0.20)
+          )
       `);
+
+    if (insertBid.recordset.length === 0) {
+      return res.status(409).json({
+        error: "La mejor oferta cambió mientras confirmabas. Revisá el nuevo importe e intentá nuevamente.",
+      });
+    }
 
     await registrarAviso(pool, clienteId, "Puja confirmada",
       `Tu oferta de ${item.moneda} ${importeNumerico.toFixed(2)} quedó registrada para el lote #${itemId} de la subasta #${subastaId}.`);
@@ -3836,7 +3870,12 @@ const heartbeatWebSocket = setInterval(() => {
   }
 }, 25000);
 
-wss.on("close", () => clearInterval(heartbeatWebSocket));
+const temporizadorLotesSimultaneos = setInterval(cerrarLotesVencidosSimultaneos, 5000);
+
+wss.on("close", () => {
+  clearInterval(heartbeatWebSocket);
+  clearInterval(temporizadorLotesSimultaneos);
+});
 
 server.listen(PORT, () => {
   console.log(`API Subastas corriendo en http://localhost:${PORT}`);

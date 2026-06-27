@@ -40,8 +40,8 @@ function firstCatalogState(session, auctionId) {
 async function main() {
   const [a, b] = await Promise.all([login("51000001"), login("51000002")]);
   const [stateA, stateB] = await Promise.all([
-    firstCatalogState(a, 7),
-    firstCatalogState(b, 7),
+    firstCatalogState(a, 8),
+    firstCatalogState(b, 8),
   ]);
   const snapshotA = stateA.lotes.map((item) => `${item.itemId}:${item.mejorOferta}`).join("|");
   const snapshotB = stateB.lotes.map((item) => `${item.itemId}:${item.mejorOferta}`).join("|");
