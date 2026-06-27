@@ -42,6 +42,15 @@ public class AdminActivity extends AppCompatActivity {
     private TextView txtAdminPendientes;
     private TextView txtAdminUsuarioSeleccionado;
     private TextView txtAdminMedioSeleccionado;
+    private TextView txtAdminKpis;
+    private TextView txtBadgeUsuarios;
+    private TextView txtBadgeMedios;
+    private TextView txtBadgeConsignaciones;
+    private TextView txtBadgeAsignables;
+    private TextView txtBadgeLotes;
+    private TextView txtBadgeMultas;
+    private ScrollView scrollAdmin;
+    private View panelAdminPendientes;
     private LinearLayout contenedorUsuariosPendientes;
     private LinearLayout contenedorMediosPendientes;
     private LinearLayout contenedorProductosPendientes;
@@ -75,6 +84,15 @@ public class AdminActivity extends AppCompatActivity {
         txtAdminPendientes = findViewById(R.id.txtAdminPendientes);
         txtAdminUsuarioSeleccionado = findViewById(R.id.txtAdminUsuarioSeleccionado);
         txtAdminMedioSeleccionado = findViewById(R.id.txtAdminMedioSeleccionado);
+        txtAdminKpis = findViewById(R.id.txtAdminKpis);
+        txtBadgeUsuarios = findViewById(R.id.txtBadgeUsuarios);
+        txtBadgeMedios = findViewById(R.id.txtBadgeMedios);
+        txtBadgeConsignaciones = findViewById(R.id.txtBadgeConsignaciones);
+        txtBadgeAsignables = findViewById(R.id.txtBadgeAsignables);
+        txtBadgeLotes = findViewById(R.id.txtBadgeLotes);
+        txtBadgeMultas = findViewById(R.id.txtBadgeMultas);
+        scrollAdmin = findViewById(R.id.scrollAdmin);
+        panelAdminPendientes = findViewById(R.id.panelAdminPendientes);
         contenedorUsuariosPendientes = findViewById(R.id.contenedorUsuariosPendientes);
         contenedorMediosPendientes = findViewById(R.id.contenedorMediosPendientes);
         contenedorProductosPendientes = findViewById(R.id.contenedorProductosPendientes);
@@ -106,11 +124,9 @@ public class AdminActivity extends AppCompatActivity {
         ));
 
         findViewById(R.id.btnAdminActualizarPendientes).setOnClickListener(v -> cargarPendientes());
-        findViewById(R.id.cardAdminVerificarUsuario).setOnClickListener(v -> mostrarDialogVerificarUsuario());
-        findViewById(R.id.cardAdminMediosPago).setOnClickListener(v -> mostrarDialogMediosPago());
-        findViewById(R.id.cardAdminConsignaciones).setOnClickListener(v ->
-                FeedbackDialog.info(this, "Consignaciones pendientes",
-                        "Tocá una ficha de consignación para revisar fotos, procedencia, titular, precio sugerido y enviar la propuesta o el rechazo sin copiar identificadores."));
+        findViewById(R.id.cardAdminVerificarUsuario).setOnClickListener(v -> desplazarAPendientes(contenedorUsuariosPendientes));
+        findViewById(R.id.cardAdminMediosPago).setOnClickListener(v -> desplazarAPendientes(contenedorMediosPendientes));
+        findViewById(R.id.cardAdminConsignaciones).setOnClickListener(v -> desplazarAPendientes(contenedorProductosPendientes));
         findViewById(R.id.cardAdminCatalogo).setOnClickListener(v -> mostrarDialogCatalogo());
         findViewById(R.id.cardAdminCerrarItem).setOnClickListener(v -> mostrarDialogCerrarItem());
         findViewById(R.id.cardAdminMultas).setOnClickListener(v -> mostrarDialogMultas());
@@ -118,6 +134,11 @@ public class AdminActivity extends AppCompatActivity {
                 startActivity(new Intent(AdminActivity.this, AdminAuctionsActivity.class)));
         findViewById(R.id.btnVolverAdmin).setOnClickListener(v -> cerrarSesionAdmin());
 
+    }
+
+    @Override
+    protected void onResume() {
+        super.onResume();
         cargarPendientes();
     }
 
@@ -134,17 +155,20 @@ public class AdminActivity extends AppCompatActivity {
                 JSONArray usuarios = leerArrayAutorizado("/api/admin/users/pending");
                 JSONArray medios = leerArrayAutorizado("/api/admin/payment-methods/pending");
                 JSONArray productos = leerArrayAutorizado("/api/admin/products/pending");
+                JSONObject acciones = leerObjetoOpcional("/api/admin/action-options");
+                JSONObject indicadores = leerObjetoOpcional("/api/admin/dashboard");
 
-                StringBuilder builder = new StringBuilder();
-                builder.append("Usuarios pendientes\n");
-                agregarResumen(builder, usuarios, "id", "documento", "categoria");
-                builder.append("\nMedios de pago pendientes\n");
-                agregarResumen(builder, medios, "id", "clienteNombre", "tipo");
-                builder.append("\nConsignaciones pendientes\n");
-                agregarResumen(builder, productos, "id", "duenioNombre", "descripcionCatalogo");
+                int total = usuarios.length() + medios.length() + productos.length();
+                String resumen = total == 0
+                        ? "No hay revisiones documentales pendientes."
+                        : total + " revisiones pendientes · tocá una ficha para resolverla\n"
+                        + usuarios.length() + " usuarios · " + medios.length() + " medios · "
+                        + productos.length() + " consignaciones";
 
                 mainHandler.post(() -> {
-                    txtAdminPendientes.setText(builder.toString());
+                    txtAdminPendientes.setText(resumen);
+                    actualizarContadores(usuarios, medios, productos, acciones);
+                    mostrarIndicadores(indicadores);
                     mostrarUsuariosPendientes(usuarios);
                     mostrarMediosPendientes(medios);
                     mostrarProductosPendientes(productos);
@@ -238,10 +262,7 @@ public class AdminActivity extends AppCompatActivity {
     @Override
     protected void onActivityResult(int requestCode, int resultCode, Intent data) {
         super.onActivityResult(requestCode, resultCode, data);
-        if (requestCode == REQ_REVISAR_USUARIO && resultCode == RESULT_OK) {
-            // El usuario fue aprobado o rechazado en la pantalla de revisión
-            cargarPendientes();
-        }
+        // onResume actualiza automáticamente todas las colas e indicadores.
     }
 
     private void seleccionarUsuarioPendiente(JSONObject usuario) {
@@ -865,6 +886,49 @@ public class AdminActivity extends AppCompatActivity {
                 mainHandler.post(() -> FeedbackDialog.error(this, e.getMessage()));
             }
         });
+    }
+
+    private void actualizarContadores(JSONArray usuarios, JSONArray medios, JSONArray productos, JSONObject acciones) {
+        txtBadgeUsuarios.setText(usuarios.length() + " pendientes");
+        txtBadgeMedios.setText(medios.length() + " pendientes");
+        txtBadgeConsignaciones.setText(productos.length() + " pendientes");
+        txtBadgeAsignables.setText(longitud(acciones, "productos") + " disponibles");
+        txtBadgeLotes.setText(longitud(acciones, "lotes") + " abiertos");
+        txtBadgeMultas.setText(longitud(acciones, "impagos") + " por revisar");
+    }
+
+    private JSONObject leerObjetoOpcional(String path) {
+        try {
+            return leerObjetoAutorizado(path);
+        } catch (Exception ignored) {
+            return new JSONObject();
+        }
+    }
+
+    private int longitud(JSONObject source, String key) {
+        JSONArray array = source == null ? null : source.optJSONArray(key);
+        return array == null ? 0 : array.length();
+    }
+
+    private void mostrarIndicadores(JSONObject indicadores) {
+        if (indicadores == null || indicadores.length() == 0) {
+            txtAdminKpis.setText("Indicadores temporalmente no disponibles · las colas de revisión siguen operativas");
+            return;
+        }
+        txtAdminKpis.setText(
+                indicadores.optInt("clientesHabilitados") + " clientes habilitados  ·  "
+                        + indicadores.optInt("subastasActivas") + " subastas activas\n"
+                        + indicadores.optInt("lotesAbiertos") + " lotes abiertos  ·  "
+                        + indicadores.optInt("pagosPendientes") + " pagos pendientes\n"
+                        + "Volumen adjudicado: $"
+                        + String.format(java.util.Locale.getDefault(), "%,.2f", indicadores.optDouble("volumenAdjudicado"))
+        );
+    }
+
+    private void desplazarAPendientes(View destino) {
+        if (scrollAdmin == null || panelAdminPendientes == null || destino == null) return;
+        scrollAdmin.post(() -> scrollAdmin.smoothScrollTo(
+                0, panelAdminPendientes.getTop() + Math.max(destino.getTop() - dp(56), 0)));
     }
 
     private void mostrarDialogMediosPago() {

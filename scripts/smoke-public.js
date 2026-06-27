@@ -56,6 +56,8 @@ async function run() {
   await request("/api/admin/payment-methods/pending", { headers: adminHeaders });
   await request("/api/admin/products/pending", { headers: adminHeaders });
   await request("/api/admin/auctions", { headers: adminHeaders });
+  await request("/api/admin/action-options", { headers: adminHeaders });
+  await request("/api/admin/dashboard", { headers: adminHeaders });
 
   console.log("SMOKE PUBLICO COMPLETO");
 }

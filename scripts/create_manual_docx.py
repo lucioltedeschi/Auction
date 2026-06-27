@@ -121,6 +121,37 @@ def bullet(doc, text):
     set_font(p.add_run(text), 10.5, NAVY)
 
 
+def numbered_group(doc, items):
+    numbering = doc.part.numbering_part.element
+    abstract_ids = [int(x.get(qn("w:abstractNumId"))) for x in numbering.findall(qn("w:abstractNum"))]
+    num_ids = [int(x.get(qn("w:numId"))) for x in numbering.findall(qn("w:num"))]
+    abstract_id = max(abstract_ids, default=0) + 1
+    num_id = max(num_ids, default=0) + 1
+
+    abstract = OxmlElement("w:abstractNum"); abstract.set(qn("w:abstractNumId"), str(abstract_id))
+    multi = OxmlElement("w:multiLevelType"); multi.set(qn("w:val"), "singleLevel"); abstract.append(multi)
+    lvl = OxmlElement("w:lvl"); lvl.set(qn("w:ilvl"), "0")
+    start = OxmlElement("w:start"); start.set(qn("w:val"), "1"); lvl.append(start)
+    fmt = OxmlElement("w:numFmt"); fmt.set(qn("w:val"), "decimal"); lvl.append(fmt)
+    text = OxmlElement("w:lvlText"); text.set(qn("w:val"), "%1."); lvl.append(text)
+    suff = OxmlElement("w:suff"); suff.set(qn("w:val"), "tab"); lvl.append(suff)
+    ppr = OxmlElement("w:pPr")
+    tabs = OxmlElement("w:tabs"); tab = OxmlElement("w:tab"); tab.set(qn("w:val"), "num"); tab.set(qn("w:pos"), "540"); tabs.append(tab); ppr.append(tabs)
+    ind = OxmlElement("w:ind"); ind.set(qn("w:left"), "540"); ind.set(qn("w:hanging"), "270"); ppr.append(ind)
+    lvl.append(ppr); abstract.append(lvl); numbering.append(abstract)
+    num = OxmlElement("w:num"); num.set(qn("w:numId"), str(num_id))
+    aid = OxmlElement("w:abstractNumId"); aid.set(qn("w:val"), str(abstract_id)); num.append(aid); numbering.append(num)
+
+    for item in items:
+        p = doc.add_paragraph()
+        p.paragraph_format.space_after = Pt(4); p.paragraph_format.line_spacing = 1.25
+        num_pr = OxmlElement("w:numPr")
+        ilvl = OxmlElement("w:ilvl"); ilvl.set(qn("w:val"), "0")
+        nid = OxmlElement("w:numId"); nid.set(qn("w:val"), str(num_id))
+        num_pr.append(ilvl); num_pr.append(nid); p._p.get_or_add_pPr().append(num_pr)
+        set_font(p.add_run(item), 10.5, NAVY)
+
+
 def callout(doc, title, text, color=GOLD):
     t = doc.add_table(rows=1, cols=1); set_table_geometry(t, [9360]); shade(t.cell(0,0), CREAM)
     p = t.cell(0,0).paragraphs[0]
@@ -128,13 +159,14 @@ def callout(doc, title, text, color=GOLD):
     set_font(p.add_run(text), 9.5, NAVY)
 
 
-def flow(doc, title, actor, objective, preconditions, steps, expected, negatives=None):
-    doc.add_page_break(); heading(doc, title, 1)
+def flow(doc, title, actor, objective, preconditions, steps, expected, negatives=None, page_break=True):
+    h = heading(doc, title, 1)
+    if page_break: h.paragraph_format.page_break_before = True
     table(doc, ["Actor", "Objetivo"], [[actor, objective]], [1700, 7660])
     heading(doc, "Precondiciones", 2)
     for item in preconditions: bullet(doc, item)
     heading(doc, "Ejecución", 2)
-    for i, item in enumerate(steps, 1): para(doc, f"{i}. {item}")
+    numbered_group(doc, steps)
     heading(doc, "Resultado esperado", 2)
     for item in expected: bullet(doc, item)
     if negatives:
@@ -168,7 +200,8 @@ fld = OxmlElement("w:fldSimple"); fld.set(qn("w:instr"), "PAGE"); fp._p.append(f
 logo = ROOT / "docs" / "logo.png"
 if logo.exists():
     p = doc.add_paragraph(); p.alignment = WD_ALIGN_PARAGRAPH.CENTER
-    p.add_run().add_picture(str(logo), width=Inches(1.15))
+    logo_shape = p.add_run().add_picture(str(logo), width=Inches(1.15))
+    logo_shape._inline.docPr.set("descr", "Logotipo de Auct.io con martillo de subastas")
 p = doc.add_paragraph(); p.alignment=WD_ALIGN_PARAGRAPH.CENTER; p.paragraph_format.space_before=Pt(42)
 set_font(p.add_run("MANUAL DE DEMOSTRACIÓN"), 11, GOLD, True)
 p = doc.add_paragraph(); p.alignment=WD_ALIGN_PARAGRAPH.CENTER
@@ -178,7 +211,7 @@ set_font(p.add_run("Flujos funcionales, controles y plan de pruebas"), 15, MUTED
 p = doc.add_paragraph(); p.alignment=WD_ALIGN_PARAGRAPH.CENTER; p.paragraph_format.space_before=Pt(60)
 set_font(p.add_run("Android + Node.js + Azure SQL + Render"), 11, NAVY, True)
 p = doc.add_paragraph(); p.alignment=WD_ALIGN_PARAGRAPH.CENTER
-set_font(p.add_run("Revisión integral · 27 de junio de 2026"), 10, MUTED)
+set_font(p.add_run("Revisión integral · 27 de junio de 2026 · versión final"), 10, MUTED)
 callout(doc, "PROPÓSITO", "Ejecutar una demo reproducible de punta a punta y verificar cada regla crítica de la tercera entrega.")
 
 doc.add_page_break(); heading(doc, "1. Inicio rápido", 1)
@@ -194,15 +227,29 @@ table(doc, ["Componente", "Referencia"], [
     ["Cliente bloqueado", "Documento 31888777 · clave 1234"],
 ], [2300,7060])
 callout(doc, "IMPORTANTE", "La instancia gratuita de Render puede tardar hasta 60 segundos en despertar. Esperar la primera respuesta antes de concluir que hay una falla.")
-heading(doc, "Recorrido sugerido de 12 minutos", 2)
-for x in ["Ingresar como cliente y mostrar Inicio, Estadísticas y Avisos.", "Abrir una subasta y pujar por dos lotes distintos.", "Comprobar ambos lotes en Historial.", "Mostrar una compra y elegir el medio de pago.", "Consignar un producto con seis fotos.", "Ingresar como administrador y resolver fichas sin escribir IDs.", "Cerrar con la matriz de reglas y pruebas negativas."]: bullet(doc,x)
+heading(doc, "Recorrido sugerido de 15 minutos", 2)
+for x in ["Ingresar como cliente y mostrar Inicio, Estadísticas y Avisos.", "Abrir Fotografía & Tecnología y mostrar cuatro relojes e historiales independientes.", "Pujar por dos lotes distintos y comprobar la actualización WebSocket en un segundo teléfono.", "Comprobar ambos lotes en Historial.", "Mostrar una compra y elegir el medio de pago.", "Consignar un producto con seis fotos.", "Ingresar como administrador, leer indicadores y resolver fichas sin escribir IDs.", "Cerrar con adjudicación, pago y controles negativos."]: bullet(doc,x)
+
+heading(doc, "Secuencia maestra punta a punta", 2)
+numbered_group(doc, [
+    "Acceso cliente (30123456 / 1234): comprobar Inicio, categoría, medios y avisos.",
+    "Tiempo real: abrir el mismo catálogo en dos equipos y comparar los cuatro lotes.",
+    "Puja: ofertar y comprobar confirmación, historial y reinicio del reloj.",
+    "Consignación: enviar un bien con seis fotos y verificar el estado pendiente.",
+    "Revisión admin (20000111 / 1234): leer KPIs, badges y resolver la ficha.",
+    "Catálogo: asignar el producto aceptado por nombre a una subasta.",
+    "Cierre: adjudicar un lote con mejor oferta y generar la compra.",
+    "Pago: volver como ganador, elegir un medio compatible y acreditar.",
+    "Trazabilidad: contrastar Historial, Estadísticas y Avisos.",
+])
 
 flow(doc, "2. Registro y verificación de identidad", "Cliente nuevo + administrador",
      "Crear una cuenta verificable y asignarle categoría.",
      ["Usar un documento y correo no existentes.", "Disponer de imágenes legibles del frente y dorso del DNI."],
      ["Completar datos personales y avanzar al segundo paso.", "Adjuntar ambas caras del documento y finalizar.", "Comprobar la pantalla de verificación pendiente.", "Ingresar como administrador y tocar la ficha del usuario.", "Revisar identidad, contacto y documentación; aprobar y elegir categoría."],
      ["El cliente queda admitido y recibe un aviso.", "La categoría asignada condiciona qué subastas puede pujar."],
-     ["Rechazar documentación incompleta.", "Intentar iniciar sesión antes de la admisión: debe impedirse."])
+     ["Rechazar documentación incompleta.", "Intentar iniciar sesión antes de la admisión: debe impedirse."],
+     page_break=False)
 
 flow(doc, "3. Medios de pago", "Cliente + administrador", "Registrar, verificar y mantener varios medios.",
      ["Cliente admitido y sesión iniciada."],
@@ -210,11 +257,11 @@ flow(doc, "3. Medios de pago", "Cliente + administrador", "Registrar, verificar 
      ["El medio queda disponible para pujar y pagar.", "Cada alta, edición y decisión genera un aviso."],
      ["Un medio editado vuelve a revisión.", "Una tarjeta no internacional no habilita una subasta en dólares.", "Un cheque no permite superar la garantía disponible."])
 
-flow(doc, "4. Catálogo, puja y varios artículos", "Cliente comprador", "Ofertar por más de un lote y visualizar cada participación.",
+flow(doc, "4. Catálogo, puja y varios artículos", "Cliente comprador", "Ofertar por más de un lote y visualizar cada participación con su propio reloj.",
      ["Cliente admitido, sin multas ni compras vencidas.", "Medio verificado compatible con la moneda.", "Categoría igual o superior a la subasta."],
-     ["Abrir una subasta disponible.", "Recorrer todos los lotes abiertos; cada uno debe mostrar PUJAR POR ESTE LOTE.", "Pujar por un primer lote y esperar confirmación del servidor.", "Sin salir de la subasta, pujar por otro lote abierto del mismo catálogo.", "Comprobar que mejores ofertas y liderazgos cambian solos en dos teléfonos.", "Abrir Historial y verificar dos fichas independientes actualizadas automáticamente.", "Tocar cada ficha para volver a su subasta."],
-     ["Puede haber varios lotes recibiendo pujas simultáneamente dentro del catálogo.", "Cada lote conserva oferta propia, mejor actual y estado GANADO/LIDERANDO/SUPERADA.", "WebSocket sincroniza el catálogo y se reconecta si se corta la red.", "La puja genera un aviso y nunca reemplaza a otra participación."],
-     ["Abrir dos teléfonos en la misma subasta: ambos deben recibir el mismo snapshot por WebSocket.", "Probar menos de mejor oferta + 1% de base: rechazo.", "Probar más de mejor oferta + 20% de base en categorías no premium: rechazo.", "Entrar a otra subasta sin haber ofertado: debe permitir confirmar el cambio.", "Intentar cambiar luego de pujar: debe conservar el vínculo y explicar el motivo."])
+     ["Abrir Fotografía & Tecnología o cualquier subasta disponible.", "Recorrer todos los lotes abiertos; cada tarjeta debe mostrar su reloj y las últimas tres ofertas.", "Anotar la duración configurada y pujar por un primer lote.", "Confirmar que sólo ese reloj vuelve a la duración completa y que la oferta aparece primera en el mini historial.", "Sin salir de la subasta, pujar por otro lote abierto del mismo catálogo.", "Comprobar que mejores ofertas, relojes y liderazgos cambian solos en dos teléfonos.", "Abrir Historial y verificar dos fichas independientes actualizadas automáticamente.", "Tocar cada ficha para volver a su subasta."],
+     ["Puede haber varios lotes recibiendo pujas simultáneamente dentro del catálogo.", "Cada lote conserva contador, historial, oferta propia, mejor actual y estado GANADO/LIDERANDO/SUPERADA.", "WebSocket sincroniza el catálogo y se reconecta si se corta la red.", "La puja genera un aviso y nunca reemplaza a otra participación."],
+     ["Probar menos de mejor oferta + 1% de base: rechazo.", "Probar más de mejor oferta + 20% de base en categorías no premium: rechazo.", "Cambiar de subasta debe permitirse antes de ofertar y bloquearse, con explicación, después de una puja."])
 
 flow(doc, "5. Adjudicación y pago", "Ganador + administrador", "Cerrar el lote, generar la compra y elegir cómo abonarla.",
      ["Lote activo con al menos una oferta.", "Ganador con un medio verificado compatible."],
@@ -230,8 +277,8 @@ flow(doc, "6. Consignación de un producto", "Cliente vendedor + administrador",
 
 flow(doc, "7. Operación administrativa", "Empleado", "Resolver pendientes y administrar subastas sin conocer IDs.",
      ["Ingresar con 20000111 / 1234."],
-     ["Actualizar pendientes.", "Tocar cada usuario, medio o consignación para ver su ficha.", "Aprobar o rechazar desde la ficha.", "Gestionar altas, modificaciones, cancelaciones y bajas de subastas.", "Asignar productos mediante selectores descriptivos.", "Cerrar lotes desde la lista de lotes abiertos.", "Aplicar multa desde la lista de impagos vencidos; confirmar el 10% calculado."],
-     ["No se solicita copiar IDs técnicos.", "Cada decisión muestra confirmación estándar y actualiza pendientes."],
+     ["Leer el bloque ejecutivo: clientes habilitados, subastas activas, lotes y pagos pendientes.", "Comprobar los badges numéricos de cada acción.", "Tocar Revisar usuarios, Medios de pago o Consignaciones; la pantalla debe desplazarse directamente a la cola correspondiente.", "Tocar una ficha para ver toda la información y aprobar o rechazar.", "Gestionar altas, modificaciones, cancelaciones y bajas de subastas.", "Asignar productos mediante selectores descriptivos.", "Cerrar lotes desde la lista de lotes abiertos.", "Aplicar multa desde la lista de impagos vencidos; confirmar el 10% calculado."],
+     ["No se solicita copiar IDs técnicos.", "Los indicadores y colas se refrescan al volver al panel.", "Cada decisión muestra confirmación estándar y actualiza pendientes."],
      ["Una subasta con dependencias no debe eliminarse.", "No debe ofrecerse multa antes de 72 horas ni duplicar una pendiente."])
 
 flow(doc, "8. Avisos y estadísticas", "Cliente", "Consultar trazabilidad y actividad personal.",
@@ -265,6 +312,7 @@ rows = [
     ["Impagos", "Cumple", "72 h, bloqueo y multa automática sugerida del 10%."],
     ["Consignación", "Cumple", "6 fotos, propiedad, inspección, propuesta y aceptación."],
     ["Administración", "Cumple", "Información completa y decisiones sin IDs manuales."],
+    ["Panel ejecutivo", "Cumple", "KPIs operativos, badges de trabajo e iconografía específica por acción."],
     ["Estadísticas", "Cumple", "Participaciones, pujas, categorías, ganados e importes."],
     ["Video", "Fuera de alcance", "La consigna lo excluye expresamente."],
     ["Servicios externos", "Representados", "Póliza, correo y fondos reales requieren proveedor productivo."],
@@ -277,6 +325,7 @@ for x in [
     "El encabezado ocupa una franja compacta y no empuja el contenido fuera de pantalla.",
     "Ninguna fotografía se estira: se usa recorte proporcional en tarjetas y ajuste contenido en galerías.",
     "Todos los popups usan fondo, iconos, tipografía y acciones consistentes con Auct.io.",
+    "Los iconos administrativos representan su acción, tienen tamaño uniforme y descripción accesible.",
     "Botones principales tienen altura táctil suficiente y estados habilitado/deshabilitado visibles.",
     "Listas vacías explican qué falta hacer.",
     "Los formularios validan antes de enviar y el backend vuelve a validar reglas económicas.",

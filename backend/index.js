@@ -3034,6 +3034,27 @@ app.get("/api/admin/action-options", requireEmployee, async (req, res) => {
   }
 });
 
+app.get("/api/admin/dashboard", requireEmployee, async (req, res) => {
+  try {
+    const pool = await poolPromise;
+    const result = await pool.request().query(`
+      SELECT
+        (SELECT COUNT(*) FROM Clients c INNER JOIN Users u ON u.identificador=c.identificador
+          WHERE c.admitido='si' AND u.estado='activo') AS clientesHabilitados,
+        (SELECT COUNT(*) FROM Auctions WHERE estado IN ('programada','abierta','en_curso')) AS subastasActivas,
+        (SELECT COUNT(*) FROM CatalogItems ci INNER JOIN Catalogs c ON c.identificador=ci.catalogo
+          INNER JOIN Auctions a ON a.identificador=c.subasta
+          WHERE ci.vendido='no' AND a.estado IN ('abierta','en_curso')) AS lotesAbiertos,
+        (SELECT COUNT(*) FROM AuctionRecords WHERE estadoPago='pendiente') AS pagosPendientes,
+        (SELECT COUNT(*) FROM AuctionRecords WHERE estadoPago='pagado') AS ventasPagadas,
+        (SELECT ISNULL(SUM(importe + comision + ISNULL(costoEnvio,0)),0) FROM AuctionRecords) AS volumenAdjudicado
+    `);
+    res.status(200).json(result.recordset[0]);
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
 app.post("/api/admin/auctions", requireEmployee, async (req, res) => {
   const { fecha, hora, estado, ubicacion, capacidadAsistentes, tieneDeposito,
     seguridadPropia, categoria, moneda, duracionItemMinutos } = req.body;

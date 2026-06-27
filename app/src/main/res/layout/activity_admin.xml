@@ -7,6 +7,7 @@
     android:orientation="vertical">
 
     <ScrollView
+        android:id="@+id/scrollAdmin"
         android:layout_width="match_parent"
         android:layout_height="0dp"
         android:layout_weight="1"
@@ -105,6 +106,18 @@
                     android:textSize="14sp" />
 
                 <TextView
+                    android:id="@+id/txtAdminKpis"
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:layout_marginTop="14dp"
+                    android:background="@drawable/bg_metric_box"
+                    android:padding="14dp"
+                    android:text="Cargando indicadores operativos…"
+                    android:textColor="#071827"
+                    android:textSize="12sp"
+                    android:textStyle="bold" />
+
+                <TextView
                     android:layout_width="wrap_content"
                     android:layout_height="34dp"
                     android:layout_marginTop="18dp"
@@ -121,6 +134,7 @@
 
             <!-- PENDIENTES -->
             <LinearLayout
+                android:id="@+id/panelAdminPendientes"
                 android:layout_width="match_parent"
                 android:layout_height="wrap_content"
                 android:layout_marginTop="20dp"
@@ -234,55 +248,77 @@
                 <LinearLayout
                     android:id="@+id/cardAdminVerificarUsuario"
                     android:layout_width="0dp"
-                    android:layout_height="90dp"
-                    android:layout_marginRight="8dp"
+                    android:layout_height="108dp"
+                    android:layout_marginEnd="8dp"
                     android:layout_weight="1"
                     android:background="@drawable/bg_card_dark_premium"
+                    android:contentDescription="Revisar usuarios pendientes"
+                    android:foreground="?attr/selectableItemBackground"
                     android:gravity="center"
                     android:orientation="vertical"
                     android:padding="12dp">
 
                     <ImageView
-                        android:layout_width="34dp" android:layout_height="34dp"
-                        android:background="@drawable/bg_icon_circle" android:contentDescription=""
-                        android:padding="8dp" android:src="@drawable/ic_nav_profile" />
+                        android:layout_width="44dp" android:layout_height="44dp"
+                        android:background="@drawable/bg_admin_icon_badge" android:contentDescription="Revisión de usuarios"
+                        android:padding="9dp" android:src="@drawable/ic_admin_user_review" />
 
                     <TextView
                         android:layout_width="wrap_content"
                         android:layout_height="wrap_content"
                         android:layout_marginTop="6dp"
                         android:gravity="center"
-                        android:text="VERIFICAR\nUSUARIO"
+                        android:text="REVISAR USUARIOS"
                         android:textColor="#FFFFFF"
                         android:textSize="11sp"
                         android:textStyle="bold" />
+
+                    <TextView
+                        android:id="@+id/txtBadgeUsuarios"
+                        android:layout_width="wrap_content"
+                        android:layout_height="wrap_content"
+                        android:layout_marginTop="3dp"
+                        android:text="— pendientes"
+                        android:textColor="#C9D5E2"
+                        android:textSize="10sp" />
 
                 </LinearLayout>
 
                 <LinearLayout
                     android:id="@+id/cardAdminMediosPago"
                     android:layout_width="0dp"
-                    android:layout_height="90dp"
+                    android:layout_height="108dp"
                     android:layout_weight="1"
                     android:background="@drawable/bg_card_premium"
+                    android:contentDescription="Revisar medios de pago pendientes"
+                    android:foreground="?attr/selectableItemBackground"
                     android:gravity="center"
                     android:orientation="vertical"
                     android:padding="12dp">
 
                     <ImageView
-                        android:layout_width="34dp" android:layout_height="34dp"
-                        android:background="@drawable/bg_icon_circle" android:contentDescription=""
-                        android:padding="8dp" android:src="@drawable/ic_service_payment" />
+                        android:layout_width="44dp" android:layout_height="44dp"
+                        android:background="@drawable/bg_admin_icon_badge" android:contentDescription="Revisión de medios de pago"
+                        android:padding="9dp" android:src="@drawable/ic_admin_payment_review" />
 
                     <TextView
                         android:layout_width="wrap_content"
                         android:layout_height="wrap_content"
                         android:layout_marginTop="6dp"
                         android:gravity="center"
-                        android:text="MEDIOS\nDE PAGO"
+                        android:text="MEDIOS DE PAGO"
                         android:textColor="#071827"
                         android:textSize="11sp"
                         android:textStyle="bold" />
+
+                    <TextView
+                        android:id="@+id/txtBadgeMedios"
+                        android:layout_width="wrap_content"
+                        android:layout_height="wrap_content"
+                        android:layout_marginTop="3dp"
+                        android:text="— pendientes"
+                        android:textColor="#64748B"
+                        android:textSize="10sp" />
 
                 </LinearLayout>
 
@@ -298,55 +334,77 @@
                 <LinearLayout
                     android:id="@+id/cardAdminConsignaciones"
                     android:layout_width="0dp"
-                    android:layout_height="90dp"
-                    android:layout_marginRight="8dp"
+                    android:layout_height="108dp"
+                    android:layout_marginEnd="8dp"
                     android:layout_weight="1"
                     android:background="@drawable/bg_card_premium"
+                    android:contentDescription="Revisar consignaciones pendientes"
+                    android:foreground="?attr/selectableItemBackground"
                     android:gravity="center"
                     android:orientation="vertical"
                     android:padding="12dp">
 
                     <ImageView
-                        android:layout_width="34dp" android:layout_height="34dp"
-                        android:background="@drawable/bg_icon_circle" android:contentDescription=""
-                        android:padding="8dp" android:src="@drawable/ic_service_consignment" />
+                        android:layout_width="44dp" android:layout_height="44dp"
+                        android:background="@drawable/bg_admin_icon_badge" android:contentDescription="Revisión de consignaciones"
+                        android:padding="9dp" android:src="@drawable/ic_admin_consignment_review" />
 
                     <TextView
                         android:layout_width="wrap_content"
                         android:layout_height="wrap_content"
                         android:layout_marginTop="6dp"
                         android:gravity="center"
-                        android:text="CONSIG-\nNACIONES"
+                        android:text="CONSIGNACIONES"
                         android:textColor="#071827"
                         android:textSize="11sp"
                         android:textStyle="bold" />
+
+                    <TextView
+                        android:id="@+id/txtBadgeConsignaciones"
+                        android:layout_width="wrap_content"
+                        android:layout_height="wrap_content"
+                        android:layout_marginTop="3dp"
+                        android:text="— pendientes"
+                        android:textColor="#64748B"
+                        android:textSize="10sp" />
 
                 </LinearLayout>
 
                 <LinearLayout
                     android:id="@+id/cardAdminCatalogo"
                     android:layout_width="0dp"
-                    android:layout_height="90dp"
+                    android:layout_height="108dp"
                     android:layout_weight="1"
                     android:background="@drawable/bg_card_premium"
+                    android:contentDescription="Asignar productos aceptados a una subasta"
+                    android:foreground="?attr/selectableItemBackground"
                     android:gravity="center"
                     android:orientation="vertical"
                     android:padding="12dp">
 
                     <ImageView
-                        android:layout_width="34dp" android:layout_height="34dp"
-                        android:background="@drawable/bg_icon_circle" android:contentDescription=""
-                        android:padding="8dp" android:src="@drawable/ic_nav_auctions" />
+                        android:layout_width="44dp" android:layout_height="44dp"
+                        android:background="@drawable/bg_admin_icon_badge" android:contentDescription="Asignación de lote"
+                        android:padding="9dp" android:src="@drawable/ic_admin_assign_lot" />
 
                     <TextView
                         android:layout_width="wrap_content"
                         android:layout_height="wrap_content"
                         android:layout_marginTop="6dp"
                         android:gravity="center"
-                        android:text="ASIGNAR A\nSUBASTA"
+                        android:text="ASIGNAR A SUBASTA"
                         android:textColor="#071827"
                         android:textSize="11sp"
                         android:textStyle="bold" />
+
+                    <TextView
+                        android:id="@+id/txtBadgeAsignables"
+                        android:layout_width="wrap_content"
+                        android:layout_height="wrap_content"
+                        android:layout_marginTop="3dp"
+                        android:text="— disponibles"
+                        android:textColor="#64748B"
+                        android:textSize="10sp" />
 
                 </LinearLayout>
 
@@ -362,55 +420,77 @@
                 <LinearLayout
                     android:id="@+id/cardAdminCerrarItem"
                     android:layout_width="0dp"
-                    android:layout_height="90dp"
-                    android:layout_marginRight="8dp"
+                    android:layout_height="108dp"
+                    android:layout_marginEnd="8dp"
                     android:layout_weight="1"
                     android:background="@drawable/bg_card_premium"
+                    android:contentDescription="Cerrar y adjudicar lotes"
+                    android:foreground="?attr/selectableItemBackground"
                     android:gravity="center"
                     android:orientation="vertical"
                     android:padding="12dp">
 
                     <ImageView
-                        android:layout_width="34dp" android:layout_height="34dp"
-                        android:background="@drawable/bg_icon_circle" android:contentDescription=""
-                        android:padding="8dp" android:src="@drawable/ic_status_success" />
+                        android:layout_width="44dp" android:layout_height="44dp"
+                        android:background="@drawable/bg_admin_icon_badge" android:contentDescription="Cierre de lote"
+                        android:padding="9dp" android:src="@drawable/ic_admin_close_lot" />
 
                     <TextView
                         android:layout_width="wrap_content"
                         android:layout_height="wrap_content"
                         android:layout_marginTop="6dp"
                         android:gravity="center"
-                        android:text="CERRAR\nLOTE"
+                        android:text="CERRAR LOTE"
                         android:textColor="#071827"
                         android:textSize="11sp"
                         android:textStyle="bold" />
+
+                    <TextView
+                        android:id="@+id/txtBadgeLotes"
+                        android:layout_width="wrap_content"
+                        android:layout_height="wrap_content"
+                        android:layout_marginTop="3dp"
+                        android:text="— abiertos"
+                        android:textColor="#64748B"
+                        android:textSize="10sp" />
 
                 </LinearLayout>
 
                 <LinearLayout
                     android:id="@+id/cardAdminMultas"
                     android:layout_width="0dp"
-                    android:layout_height="90dp"
+                    android:layout_height="108dp"
                     android:layout_weight="1"
                     android:background="@drawable/bg_card_premium"
+                    android:contentDescription="Gestionar multas por impago"
+                    android:foreground="?attr/selectableItemBackground"
                     android:gravity="center"
                     android:orientation="vertical"
                     android:padding="12dp">
 
                     <ImageView
-                        android:layout_width="34dp" android:layout_height="34dp"
-                        android:background="@drawable/bg_icon_circle" android:contentDescription=""
-                        android:padding="8dp" android:src="@drawable/ic_service_fines" />
+                        android:layout_width="44dp" android:layout_height="44dp"
+                        android:background="@drawable/bg_admin_icon_badge" android:contentDescription="Multas reglamentarias"
+                        android:padding="9dp" android:src="@drawable/ic_admin_fine" />
 
                     <TextView
                         android:layout_width="wrap_content"
                         android:layout_height="wrap_content"
                         android:layout_marginTop="6dp"
                         android:gravity="center"
-                        android:text="CREAR\nMULTA"
+                        android:text="MULTAS VENCIDAS"
                         android:textColor="#071827"
                         android:textSize="11sp"
                         android:textStyle="bold" />
+
+                    <TextView
+                        android:id="@+id/txtBadgeMultas"
+                        android:layout_width="wrap_content"
+                        android:layout_height="wrap_content"
+                        android:layout_marginTop="3dp"
+                        android:text="— por revisar"
+                        android:textColor="#64748B"
+                        android:textSize="10sp" />
 
                 </LinearLayout>
 
@@ -431,10 +511,10 @@
                 <ImageView
                     android:layout_width="46dp"
                     android:layout_height="46dp"
-                    android:background="@drawable/bg_icon_circle"
-                    android:contentDescription=""
+                    android:background="@drawable/bg_admin_icon_badge"
+                    android:contentDescription="Configuración de subastas"
                     android:padding="11dp"
-                    android:src="@drawable/ic_nav_auctions" />
+                    android:src="@drawable/ic_admin_auction_settings" />
 
                 <LinearLayout
                     android:layout_width="0dp"
