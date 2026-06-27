@@ -1087,6 +1087,11 @@ app.post("/api/clients/:clientId/active-auction", async (req, res) => {
   try {
     const clientId = Number(req.params.clientId);
     const auctionId = Number(req.body.auctionId);
+    const payload = decodificarTokenDemo(String(req.headers.authorization || "").replace(/^Bearer\s+/i, ""));
+
+    if (!payload || (Number(payload.sub) !== clientId && payload.rol !== "empleado")) {
+      return res.status(403).json({ error: "No puedes gestionar la conexión de otro cliente" });
+    }
 
     if (!clientId || !auctionId) {
       return res.status(400).json({
@@ -1150,6 +1155,10 @@ app.post("/api/clients/:clientId/active-auction/release", async (req, res) => {
   try {
     const clientId = Number(req.params.clientId);
     const auctionId = Number(req.body.auctionId);
+    const payload = decodificarTokenDemo(String(req.headers.authorization || "").replace(/^Bearer\s+/i, ""));
+    if (!payload || (Number(payload.sub) !== clientId && payload.rol !== "empleado")) {
+      return res.status(403).json({ error: "No puedes gestionar la conexión de otro cliente" });
+    }
     const pool = await poolPromise;
     const participacion = await pool.request()
       .input("clientId", sql.Int, clientId)
@@ -1683,7 +1692,10 @@ app.get("/api/auctions/:auctionId/events", async (req, res) => {
 app.get("/api/auctions/:auctionId/catalog", async (req, res) => {
   try {
     const pool = await poolPromise;
-    const clientId = Number(req.query.clientId || 0);
+    const requestedClientId = Number(req.query.clientId || 0);
+    const payload = decodificarTokenDemo(String(req.headers.authorization || "").replace(/^Bearer\s+/i, ""));
+    const clientId = payload && (Number(payload.sub) === requestedClientId || payload.rol === "empleado")
+      ? requestedClientId : 0;
 
     const result = await pool
       .request()

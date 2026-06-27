@@ -318,7 +318,8 @@ public class SubastasActivity extends AppCompatActivity {
         btnVerDetalle.setTextColor(Color.parseColor("#071827"));
         btnVerDetalle.setTextSize(12);
         btnVerDetalle.setTypeface(null, android.graphics.Typeface.BOLD);
-        btnVerDetalle.setBackgroundResource(puedePujar ? R.drawable.bg_button_gold : R.drawable.bg_button_outline);
+        btnVerDetalle.setBackgroundResource((puedePujar || puedeCambiar)
+                ? R.drawable.bg_button_gold : R.drawable.bg_button_outline);
         LinearLayout.LayoutParams btnParams = new LinearLayout.LayoutParams(
                 LinearLayout.LayoutParams.MATCH_PARENT, dp(50));
         btnParams.setMargins(0, dp(16), 0, 0);
