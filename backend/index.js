@@ -3448,13 +3448,16 @@ app.post("/api/purchases/:purchaseId/pay", async (req, res) => {
       .request()
       .input("purchaseId", sql.Int, req.params.purchaseId)
       .input("medioPagoId", sql.Int, medioPagoId || null)
-      .input("retiroPersonal", sql.VarChar, retiroPersonal ? normalizarSiNo(retiroPersonal) : null)
+      .input("retiroPersonal", sql.VarChar(2), retiroPersonal ? normalizarSiNo(retiroPersonal) : null)
       .query(`
         UPDATE AuctionRecords
         SET
           estadoPago = 'pagado',
           medioPago = @medioPagoId,
-          retiroPersonal = ISNULL(@retiroPersonal, retiroPersonal)
+          retiroPersonal = CASE
+            WHEN @retiroPersonal IS NULL THEN retiroPersonal
+            ELSE @retiroPersonal
+          END
         OUTPUT
           INSERTED.identificador AS ventaId,
           INSERTED.estadoPago,
