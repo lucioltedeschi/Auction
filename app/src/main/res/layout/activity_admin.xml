@@ -422,6 +422,59 @@
 
             </LinearLayout>
 
+            <LinearLayout
+                android:id="@+id/cardAdminGestionSubastas"
+                android:layout_width="match_parent"
+                android:layout_height="82dp"
+                android:layout_marginTop="10dp"
+                android:background="@drawable/bg_card_dark_premium"
+                android:contentDescription="Abrir gestión de subastas"
+                android:foreground="?attr/selectableItemBackground"
+                android:gravity="center_vertical"
+                android:orientation="horizontal"
+                android:paddingHorizontal="18dp">
+
+                <ImageView
+                    android:layout_width="46dp"
+                    android:layout_height="46dp"
+                    android:background="@drawable/bg_icon_circle"
+                    android:contentDescription=""
+                    android:padding="11dp"
+                    android:src="@drawable/ic_nav_auctions" />
+
+                <LinearLayout
+                    android:layout_width="0dp"
+                    android:layout_height="wrap_content"
+                    android:layout_marginStart="14dp"
+                    android:layout_weight="1"
+                    android:orientation="vertical">
+
+                    <TextView
+                        android:layout_width="wrap_content"
+                        android:layout_height="wrap_content"
+                        android:text="GESTIONAR SUBASTAS"
+                        android:textColor="#FFFFFF"
+                        android:textSize="14sp"
+                        android:textStyle="bold" />
+
+                    <TextView
+                        android:layout_width="wrap_content"
+                        android:layout_height="wrap_content"
+                        android:layout_marginTop="3dp"
+                        android:text="Crear, modificar, cancelar o eliminar vacías"
+                        android:textColor="#C9D5E2"
+                        android:textSize="11sp" />
+                </LinearLayout>
+
+                <TextView
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:text="›"
+                    android:textColor="#D4AF37"
+                    android:textSize="30sp"
+                    android:textStyle="bold" />
+            </LinearLayout>
+
             <!-- Campos ocultos requeridos por AdminActivity.java -->
             <EditText android:id="@+id/edtAdminUsuarioId" android:layout_width="0dp" android:layout_height="0dp" android:visibility="gone" android:inputType="number" />
             <EditText android:id="@+id/edtAdminMedioPagoId" android:layout_width="0dp" android:layout_height="0dp" android:visibility="gone" android:inputType="number" />

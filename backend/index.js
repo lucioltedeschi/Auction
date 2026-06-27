@@ -2628,6 +2628,162 @@ app.patch("/api/admin/products/:productId/review", requireEmployee, async (req, 
   }
 });
 
+app.get("/api/admin/auctions", requireEmployee, async (req, res) => {
+  try {
+    const pool = await poolPromise;
+    const result = await pool.request().query(`
+      SELECT a.identificador AS id, a.fecha, a.hora, a.estado, a.ubicacion,
+             a.capacidadAsistentes, a.tieneDeposito, a.seguridadPropia,
+             a.categoria, a.moneda, a.duracionItemMinutos,
+             COUNT(DISTINCT ci.identificador) AS cantidadLotes,
+             COUNT(DISTINCT ar.identificador) AS cantidadVentas
+      FROM Auctions a
+      LEFT JOIN Catalogs c ON c.subasta = a.identificador
+      LEFT JOIN CatalogItems ci ON ci.catalogo = c.identificador
+      LEFT JOIN AuctionRecords ar ON ar.subasta = a.identificador
+      GROUP BY a.identificador, a.fecha, a.hora, a.estado, a.ubicacion,
+               a.capacidadAsistentes, a.tieneDeposito, a.seguridadPropia,
+               a.categoria, a.moneda, a.duracionItemMinutos
+      ORDER BY a.fecha DESC, a.hora DESC, a.identificador DESC
+    `);
+    res.status(200).json(result.recordset);
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+app.post("/api/admin/auctions", requireEmployee, async (req, res) => {
+  const { fecha, hora, estado, ubicacion, capacidadAsistentes, tieneDeposito,
+    seguridadPropia, categoria, moneda, duracionItemMinutos } = req.body;
+  const estados = ["programada", "abierta", "en_curso", "cerrada", "cancelada"];
+  const categorias = ["comun", "especial", "plata", "oro", "platino"];
+  const monedas = ["pesos", "dolares"];
+
+  if (!fecha || !hora || !ubicacion || !estados.includes(estado)
+      || !categorias.includes(categoria) || !monedas.includes(moneda)) {
+    return res.status(400).json({ error: "Complete fecha, hora, ubicación, estado, categoría y moneda válidos" });
+  }
+
+  const pool = await poolPromise;
+  const transaction = new sql.Transaction(pool);
+  try {
+    await transaction.begin();
+    const auctioneer = await new sql.Request(transaction)
+      .query("SELECT TOP 1 identificador FROM Auctioneers ORDER BY identificador");
+    if (auctioneer.recordset.length === 0) {
+      await transaction.rollback();
+      return res.status(400).json({ error: "No existe un martillero configurado" });
+    }
+
+    const inserted = await new sql.Request(transaction)
+      .input("fecha", sql.Date, fecha)
+      .input("hora", sql.VarChar(16), hora)
+      .input("estado", sql.VarChar(20), estado)
+      .input("subastador", sql.Int, auctioneer.recordset[0].identificador)
+      .input("ubicacion", sql.VarChar(350), ubicacion.trim())
+      .input("capacidad", sql.Int, Number(capacidadAsistentes || 100))
+      .input("deposito", sql.VarChar(2), tieneDeposito === "no" ? "no" : "si")
+      .input("seguridad", sql.VarChar(2), seguridadPropia === "no" ? "no" : "si")
+      .input("categoria", sql.VarChar(10), categoria)
+      .input("moneda", sql.VarChar(10), moneda)
+      .input("duracion", sql.Int, Number(duracionItemMinutos || 180))
+      .query(`
+        INSERT INTO Auctions (fecha, hora, estado, subastador, ubicacion, capacidadAsistentes,
+          tieneDeposito, seguridadPropia, categoria, moneda, duracionItemMinutos)
+        OUTPUT INSERTED.identificador AS id
+        VALUES (@fecha, @hora, @estado, @subastador, @ubicacion, @capacidad,
+          @deposito, @seguridad, @categoria, @moneda, @duracion)
+      `);
+    const auctionId = inserted.recordset[0].id;
+    await new sql.Request(transaction)
+      .input("descripcion", sql.VarChar(250), `Catálogo · ${ubicacion.trim()}`.slice(0, 250))
+      .input("auctionId", sql.Int, auctionId)
+      .input("responsable", sql.Int, req.usuario.sub)
+      .query("INSERT INTO Catalogs (descripcion, subasta, responsable) VALUES (@descripcion, @auctionId, @responsable)");
+    await transaction.commit();
+    res.status(201).json({ mensaje: "Subasta y catálogo creados", id: auctionId });
+  } catch (err) {
+    if (!transaction._aborted) await transaction.rollback().catch(() => {});
+    res.status(500).json({ error: err.message });
+  }
+});
+
+app.patch("/api/admin/auctions/:auctionId", requireEmployee, async (req, res) => {
+  try {
+    const { fecha, hora, estado, ubicacion, capacidadAsistentes, tieneDeposito,
+      seguridadPropia, categoria, moneda, duracionItemMinutos } = req.body;
+    const estados = ["programada", "abierta", "en_curso", "cerrada", "cancelada"];
+    const categorias = ["comun", "especial", "plata", "oro", "platino"];
+    const monedas = ["pesos", "dolares"];
+    if (!fecha || !hora || !ubicacion || !estados.includes(estado)
+        || !categorias.includes(categoria) || !monedas.includes(moneda)) {
+      return res.status(400).json({ error: "Datos de subasta incompletos o inválidos" });
+    }
+    const pool = await poolPromise;
+    const result = await pool.request()
+      .input("id", sql.Int, req.params.auctionId)
+      .input("fecha", sql.Date, fecha)
+      .input("hora", sql.VarChar(16), hora)
+      .input("estado", sql.VarChar(20), estado)
+      .input("ubicacion", sql.VarChar(350), ubicacion.trim())
+      .input("capacidad", sql.Int, Number(capacidadAsistentes || 100))
+      .input("deposito", sql.VarChar(2), tieneDeposito === "no" ? "no" : "si")
+      .input("seguridad", sql.VarChar(2), seguridadPropia === "no" ? "no" : "si")
+      .input("categoria", sql.VarChar(10), categoria)
+      .input("moneda", sql.VarChar(10), moneda)
+      .input("duracion", sql.Int, Number(duracionItemMinutos || 180))
+      .query(`
+        UPDATE Auctions SET fecha=@fecha, hora=@hora, estado=@estado, ubicacion=@ubicacion,
+          capacidadAsistentes=@capacidad, tieneDeposito=@deposito, seguridadPropia=@seguridad,
+          categoria=@categoria, moneda=@moneda, duracionItemMinutos=@duracion
+        OUTPUT INSERTED.identificador AS id
+        WHERE identificador=@id
+      `);
+    if (result.recordset.length === 0) return res.status(404).json({ error: "Subasta no encontrada" });
+    res.status(200).json({ mensaje: "Subasta actualizada", id: result.recordset[0].id });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+app.delete("/api/admin/auctions/:auctionId", requireEmployee, async (req, res) => {
+  const pool = await poolPromise;
+  const transaction = new sql.Transaction(pool);
+  try {
+    await transaction.begin();
+    const usage = await new sql.Request(transaction)
+      .input("id", sql.Int, req.params.auctionId)
+      .query(`
+        SELECT
+          (SELECT COUNT(*) FROM CatalogItems ci INNER JOIN Catalogs c ON c.identificador=ci.catalogo WHERE c.subasta=@id) AS lotes,
+          (SELECT COUNT(*) FROM Attendees WHERE subasta=@id) AS asistentes,
+          (SELECT COUNT(*) FROM AuctionRecords WHERE subasta=@id) AS ventas,
+          (SELECT COUNT(*) FROM Fines WHERE subasta=@id) AS multas
+      `);
+    const counts = usage.recordset[0];
+    if (counts.lotes || counts.asistentes || counts.ventas || counts.multas) {
+      await transaction.rollback();
+      return res.status(409).json({
+        error: "La subasta tiene actividad asociada. Cambie su estado a cancelada para conservar la trazabilidad.",
+        dependencias: counts,
+      });
+    }
+    await new sql.Request(transaction).input("id", sql.Int, req.params.auctionId)
+      .query("DELETE FROM Catalogs WHERE subasta=@id");
+    const deleted = await new sql.Request(transaction).input("id", sql.Int, req.params.auctionId)
+      .query("DELETE FROM Auctions OUTPUT DELETED.identificador AS id WHERE identificador=@id");
+    if (deleted.recordset.length === 0) {
+      await transaction.rollback();
+      return res.status(404).json({ error: "Subasta no encontrada" });
+    }
+    await transaction.commit();
+    res.status(200).json({ mensaje: "Subasta vacía eliminada" });
+  } catch (err) {
+    if (!transaction._aborted) await transaction.rollback().catch(() => {});
+    res.status(500).json({ error: err.message });
+  }
+});
+
 app.post("/api/products/:productId/proposal-response", async (req, res) => {
   try {
     const { duenio, decision } = req.body;

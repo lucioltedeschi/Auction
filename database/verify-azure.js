@@ -23,6 +23,13 @@ async function verificar() {
       subastas: "Auctions",
       productos: "Products",
       lotes: "CatalogItems",
+      fotos: "Photos",
+      asistentes: "Attendees",
+      pujas: "Bids",
+      compras: "AuctionRecords",
+      mediosPago: "PaymentMethods",
+      multas: "Fines",
+      avisos: "Notifications",
     };
 
     for (const [etiqueta, tabla] of Object.entries(entidades)) {
@@ -35,6 +42,15 @@ async function verificar() {
       resumen[etiqueta] = cantidad.recordset[0].cantidad;
     }
 
+    const demoXl = await pool.request().query(`
+      SELECT
+        (SELECT COUNT(*) FROM Users WHERE direccion LIKE 'DEMO XL - %') AS usuarios,
+        (SELECT COUNT(*) FROM Auctions WHERE ubicacion LIKE 'DEMO XL - %') AS subastas,
+        (SELECT COUNT(*) FROM Products WHERE descripcionCatalogo LIKE 'DEMO XL - %') AS productos,
+        (SELECT COUNT(*) FROM Photos ph INNER JOIN Products p ON p.identificador=ph.producto WHERE p.descripcionCatalogo LIKE 'DEMO XL - %') AS fotos,
+        (SELECT COUNT(*) FROM Notifications WHERE titulo LIKE 'DEMO XL - %') AS avisos
+    `);
+    resumen.demoXl = demoXl.recordset[0];
     console.log(JSON.stringify(resumen));
   } finally {
     await pool.close();

@@ -50,6 +50,16 @@ Validación integral contra Render y Azure SQL:
 npm run test:smoke:public
 ```
 
+Crear o actualizar el set grande de demostración en Azure:
+
+```powershell
+npm.cmd run db:seed:demo-xl
+npm.cmd run db:verify:azure
+```
+
+El detalle de usuarios, subastas, fotos y casos preparados está en
+`docs/Demo_XL_Azure.md`.
+
 ## Android
 
 La URL del backend se define al compilar. Sin parametro usa el backend publico

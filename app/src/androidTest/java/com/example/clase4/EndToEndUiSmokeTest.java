@@ -45,6 +45,7 @@ public class EndToEndUiSmokeTest {
         comprobarVista(RegistroActivity.class, R.id.btnRegistrar);
         comprobarVista(PendingVerificationActivity.class, R.id.btnVolverLoginPendiente);
         comprobarVista(AdminActivity.class, R.id.btnAdminActualizarPendientes);
+        comprobarVista(AdminAuctionsActivity.class, R.id.btnSaveAdminAuction);
     }
 
     @Test

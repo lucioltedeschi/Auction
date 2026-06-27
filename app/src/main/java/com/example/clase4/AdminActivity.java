@@ -112,6 +112,8 @@ public class AdminActivity extends AppCompatActivity {
         findViewById(R.id.cardAdminCatalogo).setOnClickListener(v -> mostrarDialogCatalogo());
         findViewById(R.id.cardAdminCerrarItem).setOnClickListener(v -> mostrarDialogCerrarItem());
         findViewById(R.id.cardAdminMultas).setOnClickListener(v -> mostrarDialogMultas());
+        findViewById(R.id.cardAdminGestionSubastas).setOnClickListener(v ->
+                startActivity(new Intent(AdminActivity.this, AdminAuctionsActivity.class)));
         findViewById(R.id.btnVolverAdmin).setOnClickListener(v -> cerrarSesionAdmin());
 
         cargarPendientes();

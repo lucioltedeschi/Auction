@@ -9,7 +9,9 @@
     "check:backend": "node --check backend/index.js",
     "db:setup:azure": "node database/setup-azure.js",
     "db:verify:azure": "node database/verify-azure.js",
+    "db:seed:demo-xl": "node database/seed-demo-extended.js",
     "test:smoke:public": "node scripts/smoke-public.js",
+    "test:admin-abm": "node scripts/test-admin-auctions.js",
     "build:android": "gradlew.bat :app:assembleDebug"
   },
   "repository": {

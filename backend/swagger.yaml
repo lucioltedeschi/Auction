@@ -754,6 +754,54 @@ paths:
         "200":
           description: Avisos ordenados desde el más reciente
 
+  /api/admin/auctions:
+    get:
+      tags: [Admin]
+      summary: Listar subastas con cantidad de lotes y ventas
+      responses:
+        "200": { description: Listado administrativo }
+    post:
+      tags: [Admin]
+      summary: Crear subasta y catálogo inicial
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [fecha, hora, estado, ubicacion, categoria, moneda]
+              properties:
+                fecha: { type: string, format: date }
+                hora: { type: string, example: "20:00" }
+                estado: { type: string, enum: [programada, abierta, en_curso, cerrada, cancelada] }
+                ubicacion: { type: string }
+                categoria: { type: string, enum: [comun, especial, plata, oro, platino] }
+                moneda: { type: string, enum: [pesos, dolares] }
+                capacidadAsistentes: { type: integer, example: 120 }
+                tieneDeposito: { type: string, enum: [si, no] }
+                seguridadPropia: { type: string, enum: [si, no] }
+                duracionItemMinutos: { type: integer, example: 180 }
+      responses:
+        "201": { description: Subasta y catálogo creados }
+
+  /api/admin/auctions/{auctionId}:
+    patch:
+      tags: [Admin]
+      summary: Modificar todos los datos operativos de una subasta
+      parameters:
+        - $ref: "#/components/parameters/AuctionId"
+      responses:
+        "200": { description: Subasta actualizada }
+    delete:
+      tags: [Admin]
+      summary: Eliminar una subasta vacía
+      description: Rechaza la baja si existen lotes, asistentes, ventas o multas.
+      parameters:
+        - $ref: "#/components/parameters/AuctionId"
+      responses:
+        "200": { description: Subasta eliminada }
+        "409": { description: Tiene actividad y debe cancelarse }
+
   /api/notifications/{notificationId}/read:
     patch:
       tags: [Usuarios]
