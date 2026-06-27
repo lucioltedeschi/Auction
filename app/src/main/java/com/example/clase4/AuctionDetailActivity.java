@@ -100,6 +100,7 @@ public class AuctionDetailActivity extends AppCompatActivity {
 
         getWindow().setStatusBarColor(android.graphics.Color.parseColor("#F3F0E8"));
         getWindow().setNavigationBarColor(android.graphics.Color.parseColor("#F3F0E8"));
+        SystemBars.configure(this, "#F3F0E8", true, "#F3F0E8", true);
         BottomNavHelper.configurar(this);
 
         txtTopBarSubasta = findViewById(R.id.txtTopBarSubasta);
@@ -977,7 +978,7 @@ public class AuctionDetailActivity extends AppCompatActivity {
         title.setLayoutParams(tp);
 
         android.widget.TextView msg = new android.widget.TextView(this);
-        msg.setText("El lote fue adjudicado a tu nombre. Tenés 7 días para completar el pago.");
+        msg.setText("El lote fue adjudicado a tu nombre. Completá el pago dentro de las próximas 72 horas para evitar una multa del 10%.");
         msg.setTextSize(14);
         msg.setTextColor(Color.parseColor("#475569"));
         msg.setGravity(android.view.Gravity.CENTER);

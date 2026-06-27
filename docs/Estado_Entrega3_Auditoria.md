@@ -50,11 +50,14 @@ Cubierto funcionalmente:
 - Si nadie puja por un lote, se genera una venta a cliente interno empresa por el precio base.
 - Seed demo idempotente para Entrega 3 en `database/ENTREGA3_DEMO_SUBASTAS.sql`.
 
-Pendiente para cierre de entrega:
-- Publicar el backend en una URL accesible online y actualizar `ApiConfig.BASE_URL`.
-- Entregar o indicar el APK generado para instalar en dispositivo.
-- Confirmar que la base remota tenga ejecutado `database/ENTREGA3_CORRECCIONES.sql`.
-- Si se arma una base desde cero, ejecutar `CREAR_BASE.sql`, `DATOS_DEMO_BASE.sql`, `ENTREGA3_CORRECCIONES.sql`, `ENTREGA3_DEMO_SUBASTAS.sql` y `DATOS_DEMO_MULTA.sql`.
+Cierre técnico confirmado:
+- Backend online en `https://auct-io-api.onrender.com` y Android configurado con esa URL.
+- Azure SQL remota operativa con datos de demostración.
+- APK generado en `app/build/outputs/apk/debug/app-debug.apk`.
+- Smoke test público automatizado en `scripts/smoke-public.js`.
+
+Si se arma otra base desde cero, ejecutar `CREAR_BASE.sql`, `DATOS_DEMO_BASE.sql`,
+`ENTREGA3_CORRECCIONES.sql`, `ENTREGA3_DEMO_SUBASTAS.sql` y `DATOS_DEMO_MULTA.sql`.
 
 ## Flujo recomendado de demo
 

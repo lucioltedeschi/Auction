@@ -3235,6 +3235,29 @@ app.get("/api/clients/:clientId/notifications", async (req, res) => {
   }
 });
 
+app.patch("/api/notifications/:notificationId/read", async (req, res) => {
+  try {
+    const pool = await poolPromise;
+    const result = await pool
+      .request()
+      .input("notificationId", sql.Int, req.params.notificationId)
+      .query(`
+        UPDATE Notifications
+        SET leida = 'si'
+        OUTPUT INSERTED.identificador AS id, INSERTED.leida
+        WHERE identificador = @notificationId
+      `);
+
+    if (result.recordset.length === 0) {
+      return res.status(404).json({ error: "Notificacion no encontrada" });
+    }
+
+    res.status(200).json({ mensaje: "Notificacion marcada como leida", notificacion: result.recordset[0] });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
 /* ============================================================
    RUTAS ANTIGUAS COMPATIBLES
    ============================================================ */

@@ -44,6 +44,12 @@ Health check:
 GET /api/test
 ```
 
+Validación integral contra Render y Azure SQL:
+
+```bash
+npm run test:smoke:public
+```
+
 ## Android
 
 La URL del backend se define al compilar. Sin parametro usa el backend publico

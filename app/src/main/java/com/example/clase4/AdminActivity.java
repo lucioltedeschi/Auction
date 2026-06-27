@@ -69,6 +69,7 @@ public class AdminActivity extends AppCompatActivity {
     protected void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
         setContentView(R.layout.activity_admin);
+        SystemBars.configure(this, "#F3F0E8", true, "#F3F0E8", true);
 
         txtMensajeAdmin = findViewById(R.id.txtMensajeAdmin);
         txtAdminPendientes = findViewById(R.id.txtAdminPendientes);

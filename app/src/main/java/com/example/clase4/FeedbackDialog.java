@@ -5,39 +5,74 @@ import android.content.Context;
 import android.graphics.Color;
 import android.graphics.drawable.GradientDrawable;
 import android.view.Gravity;
+import android.view.Window;
+import android.widget.ImageView;
 import android.widget.LinearLayout;
 import android.widget.TextView;
 
 public class FeedbackDialog {
     public static void ok(Context context, String mensaje) {
-        mostrar(context, "Operacion realizada", mensaje, "OK", "#166534");
+        mostrar(context, "Operación realizada", mensaje, R.drawable.ic_status_success, "#166534");
     }
 
     public static void error(Context context, String mensaje) {
-        mostrar(context, "No se pudo completar", mensajeAmigable(mensaje), "!", "#991B1B");
+        mostrar(context, "No se pudo completar", mensajeAmigable(mensaje), R.drawable.ic_status_error, "#991B1B");
     }
 
     public static void info(Context context, String titulo, String mensaje) {
-        mostrar(context, titulo, mensaje, "i", "#A8872F");
+        mostrar(context, titulo, mensaje, R.drawable.ic_status_info, "#A8872F");
     }
 
-    private static void mostrar(Context context, String titulo, String mensaje, String badge, String badgeColor) {
+    public static void confirmar(Context context, String titulo, String mensaje, Runnable alConfirmar) {
+        LinearLayout root = crearContenido(context, titulo, mensaje, R.drawable.ic_status_info, "#A8872F");
+        AlertDialog dialog = new AlertDialog.Builder(context)
+                .setView(root)
+                .setNegativeButton("Cancelar", null)
+                .setPositiveButton("Confirmar", (ignored, which) -> alConfirmar.run())
+                .create();
+
+        dialog.setOnShowListener(ignored -> {
+            dialog.getButton(AlertDialog.BUTTON_POSITIVE).setTextColor(Color.parseColor("#A8872F"));
+            dialog.getButton(AlertDialog.BUTTON_POSITIVE).setTypeface(null, android.graphics.Typeface.BOLD);
+            dialog.getButton(AlertDialog.BUTTON_NEGATIVE).setTextColor(Color.parseColor("#64748B"));
+        });
+        dialog.show();
+        estilizarVentana(dialog);
+    }
+
+    private static void mostrar(Context context, String titulo, String mensaje, int iconRes, String badgeColor) {
+        LinearLayout root = crearContenido(context, titulo, mensaje, iconRes, badgeColor);
+
+        AlertDialog dialog = new AlertDialog.Builder(context)
+                .setView(root)
+                .setPositiveButton("Entendido", null)
+                .create();
+
+        dialog.setOnShowListener(ignored -> {
+            dialog.getButton(AlertDialog.BUTTON_POSITIVE).setTextColor(Color.parseColor("#A8872F"));
+            dialog.getButton(AlertDialog.BUTTON_POSITIVE).setTypeface(null, android.graphics.Typeface.BOLD);
+        });
+        dialog.show();
+        estilizarVentana(dialog);
+    }
+
+    private static LinearLayout crearContenido(Context context, String titulo, String mensaje, int iconRes, String badgeColor) {
         LinearLayout root = new LinearLayout(context);
         root.setOrientation(LinearLayout.VERTICAL);
-        root.setPadding(dp(context, 24), dp(context, 24), dp(context, 24), dp(context, 12));
+        root.setPadding(dp(context, 24), dp(context, 26), dp(context, 24), dp(context, 16));
         root.setGravity(Gravity.CENTER_HORIZONTAL);
+        root.setBackgroundResource(R.drawable.bg_dialog_premium);
 
-        TextView badgeView = new TextView(context);
-        badgeView.setText(badge);
-        badgeView.setTextColor(Color.WHITE);
-        badgeView.setTextSize(18);
-        badgeView.setTypeface(null, android.graphics.Typeface.BOLD);
-        badgeView.setGravity(Gravity.CENTER);
+        ImageView badgeView = new ImageView(context);
+        badgeView.setImageResource(iconRes);
+        badgeView.setColorFilter(Color.WHITE);
+        badgeView.setPadding(dp(context, 12), dp(context, 12), dp(context, 12), dp(context, 12));
+        badgeView.setContentDescription(titulo);
         GradientDrawable badgeBackground = new GradientDrawable();
         badgeBackground.setShape(GradientDrawable.OVAL);
         badgeBackground.setColor(Color.parseColor(badgeColor));
         badgeView.setBackground(badgeBackground);
-        LinearLayout.LayoutParams badgeParams = new LinearLayout.LayoutParams(dp(context, 42), dp(context, 42));
+        LinearLayout.LayoutParams badgeParams = new LinearLayout.LayoutParams(dp(context, 52), dp(context, 52));
         badgeView.setLayoutParams(badgeParams);
 
         TextView titleView = new TextView(context);
@@ -69,11 +104,14 @@ public class FeedbackDialog {
         root.addView(badgeView);
         root.addView(titleView);
         root.addView(messageView);
+        return root;
+    }
 
-        new AlertDialog.Builder(context)
-                .setView(root)
-                .setPositiveButton("Entendido", null)
-                .show();
+    private static void estilizarVentana(AlertDialog dialog) {
+        Window window = dialog.getWindow();
+        if (window != null) {
+            window.setBackgroundDrawableResource(android.R.color.transparent);
+        }
     }
 
     private static String mensajeAmigable(String mensaje) {
@@ -83,23 +121,23 @@ public class FeedbackDialog {
         String lower = base.toLowerCase();
 
         if (lower.contains("conectar") || lower.contains("conexion") || lower.contains("servidor")) {
-            return base + "\n\nVerifica que el backend este encendido y que el celular/emulador este apuntando a la URL correcta.";
+            return base + "\n\nVerificá tu conexión a internet y volvé a intentar. El servicio gratuito puede tardar unos segundos en activarse.";
         }
 
         if (lower.contains("medio de pago") || lower.contains("verificado")) {
-            return base + "\n\nCarga un medio de pago y espera la verificacion interna antes de intentar pujar.";
+            return base + "\n\nCargá un medio de pago y esperá la verificación interna antes de intentar pujar.";
         }
 
         if (lower.contains("multa")) {
-            return base + "\n\nRegulariza la multa desde la seccion Multas para volver a participar.";
+            return base + "\n\nRegularizá la multa desde la sección Multas para volver a participar.";
         }
 
         if (lower.contains("categoria")) {
-            return base + "\n\nTu categoria actual no alcanza para esta subasta. La empresa puede actualizarla luego de la verificacion.";
+            return base + "\n\nTu categoría actual no alcanza para esta subasta. La empresa puede actualizarla luego de la verificación.";
         }
 
         if (lower.contains("subasta activa") || lower.contains("conectado")) {
-            return base + "\n\nSali de la subasta actual antes de entrar a otra.";
+            return base + "\n\nSalí de la subasta actual antes de entrar a otra.";
         }
 
         return base;

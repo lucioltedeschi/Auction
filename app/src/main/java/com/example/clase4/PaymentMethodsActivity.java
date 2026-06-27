@@ -9,6 +9,7 @@ import android.os.Looper;
 import android.view.Gravity;
 import android.view.View;
 import android.widget.Button;
+import android.widget.ImageView;
 import android.widget.LinearLayout;
 import android.widget.TextView;
 
@@ -43,6 +44,7 @@ public class PaymentMethodsActivity extends AppCompatActivity {
 
         getWindow().setStatusBarColor(android.graphics.Color.parseColor("#071827"));
         getWindow().setNavigationBarColor(android.graphics.Color.parseColor("#F3F0E8"));
+        SystemBars.configure(this, "#071827", false, "#F3F0E8", true);
 
         txtMensajeMediosPago = findViewById(R.id.txtMensajeMediosPago);
         contenedorMediosPago = findViewById(R.id.contenedorMediosPago);
@@ -56,7 +58,6 @@ public class PaymentMethodsActivity extends AppCompatActivity {
         findViewById(R.id.btnNuevaTarjetaCredito).setOnClickListener(v -> abrirFlujo("tarjeta_credito"));
         findViewById(R.id.btnNuevoChequeCertificado).setOnClickListener(v -> abrirFlujo("cheque_certificado"));
 
-        cargarMediosPago();
     }
 
     @Override
@@ -146,12 +147,14 @@ public class PaymentMethodsActivity extends AppCompatActivity {
         header.setOrientation(LinearLayout.HORIZONTAL);
         header.setGravity(Gravity.CENTER_VERTICAL);
 
-        TextView iconTv = new TextView(this);
-        iconTv.setText(tipoIcono(tipo));
-        iconTv.setTextSize(22);
+        ImageView iconTv = new ImageView(this);
+        iconTv.setImageResource(tipoIcono(tipo));
+        iconTv.setBackgroundResource(R.drawable.bg_icon_circle);
+        iconTv.setPadding((int)(9*d), (int)(9*d), (int)(9*d), (int)(9*d));
+        iconTv.setContentDescription(formatTipo(tipo));
 
         LinearLayout.LayoutParams iconP = new LinearLayout.LayoutParams(
-                LinearLayout.LayoutParams.WRAP_CONTENT, LinearLayout.LayoutParams.WRAP_CONTENT);
+                (int)(40*d), (int)(40*d));
         iconP.setMargins(0, 0, (int)(10*d), 0);
         iconTv.setLayoutParams(iconP);
 
@@ -233,10 +236,9 @@ public class PaymentMethodsActivity extends AppCompatActivity {
         return card;
     }
 
-    private String tipoIcono(String tipo) {
-        if ("tarjeta_credito".equals(tipo)) return "💳";
-        if ("cheque_certificado".equals(tipo)) return "📋";
-        return "🏦";
+    private int tipoIcono(String tipo) {
+        if ("cheque_certificado".equals(tipo)) return R.drawable.ic_service_consignment;
+        return R.drawable.ic_service_payment;
     }
 
     private String formatTipo(String tipo) {

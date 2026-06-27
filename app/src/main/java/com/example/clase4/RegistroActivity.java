@@ -53,6 +53,7 @@ public class RegistroActivity extends AppCompatActivity {
     protected void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
         setContentView(R.layout.activity_registro);
+        SystemBars.configure(this, "#F3F0E8", true, "#F3F0E8", true);
 
         etDocumento = findViewById(R.id.etDocumento);
         etNombre = findViewById(R.id.etNombre);
@@ -171,12 +172,12 @@ public class RegistroActivity extends AppCompatActivity {
         String telefono = etTelefono.getText().toString().trim();
 
         if (documento.isEmpty() || nombre.isEmpty() || apellido.isEmpty() || direccion.isEmpty()) {
-            mostrarErrorRegistro("Completa documento, nombre, apellido y domicilio legal.");
+            mostrarErrorRegistro("Completá documento, nombre, apellido y domicilio legal.");
             return;
         }
 
         if (fotoDniFrenteBase64 == null || fotoDniDorsoBase64 == null) {
-            mostrarErrorRegistro("Selecciona frente y dorso del DNI.");
+            mostrarErrorRegistro("Seleccioná frente y dorso del DNI.");
             return;
         }
 
@@ -220,13 +221,13 @@ public class RegistroActivity extends AppCompatActivity {
             public void onFailure(Call<ResponseBody> call, Throwable t) {
                 btnRegistrar.setEnabled(true);
                 btnRegistrar.setText("Enviar solicitud");
-                mostrarErrorRegistro("No se pudo conectar con el servidor. Revisa que el celular este en la misma red que la computadora y que el backend este encendido.");
+                mostrarErrorRegistro("No se pudo conectar con el servidor. Revisá tu conexión a internet y volvé a intentar en unos segundos.");
             }
         });
     }
 
     private String mensajeErrorRegistro(Response<ResponseBody> response) {
-        String detalle = "No se pudo enviar la solicitud. Codigo: " + response.code();
+        String detalle = "No se pudo enviar la solicitud. Código: " + response.code();
 
         try {
             if (response.errorBody() != null) {
@@ -243,7 +244,7 @@ public class RegistroActivity extends AppCompatActivity {
         String clave = etClavePaso2.getText().toString().trim();
 
         if (documento.isEmpty() || clave.isEmpty()) {
-            mostrarErrorPaso2("Ingresa documento y clave.");
+            mostrarErrorPaso2("Ingresá documento y clave.");
             return;
         }
 
@@ -260,12 +261,12 @@ public class RegistroActivity extends AppCompatActivity {
                 btnCompletarRegistro.setText("Generar clave");
 
                 if (response.isSuccessful()) {
-                    txtMensajePaso2.setText("Clave generada. Ya podes iniciar sesion.");
-                    FeedbackDialog.ok(RegistroActivity.this, "Clave generada. Ya podes iniciar sesion.");
+                    txtMensajePaso2.setText("Clave generada. Ya podés iniciar sesión.");
+                    FeedbackDialog.ok(RegistroActivity.this, "Clave generada. Ya podés iniciar sesión.");
                     startActivity(new Intent(RegistroActivity.this, LoginActivity.class));
                     finish();
                 } else if (response.code() == 403) {
-                    mostrarErrorPaso2("La empresa todavia no aprobo esta cuenta.");
+                    mostrarErrorPaso2("La empresa todavía no aprobó esta cuenta.");
                 } else {
                     mostrarErrorPaso2("No se pudo generar la clave.");
                 }

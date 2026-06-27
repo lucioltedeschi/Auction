@@ -2,13 +2,15 @@ package com.example.clase4;
 
 import android.content.Intent;
 import android.content.SharedPreferences;
+import android.content.ClipData;
+import android.graphics.Bitmap;
+import android.graphics.ImageDecoder;
 import android.net.Uri;
 import android.os.Bundle;
 import android.os.Handler;
 import android.os.Looper;
 import android.util.Base64;
 import android.view.View;
-import android.app.AlertDialog;
 import android.widget.Button;
 import android.widget.CheckBox;
 import android.widget.EditText;
@@ -35,6 +37,7 @@ import java.util.concurrent.Executors;
 public class ProductRequestActivity extends AppCompatActivity {
 
     private static final int REQ_FOTO_BASE = 3100;
+    private static final int REQ_FOTOS_MULTIPLES = 3099;
     private static final int TOTAL_FOTOS_REQUERIDAS = 6;
 
     private EditText edtDescripcionCatalogo;
@@ -43,6 +46,7 @@ public class ProductRequestActivity extends AppCompatActivity {
     private EditText edtArtista;
     private EditText edtPrecioBaseSugerido;
     private TextView[] txtFotos;
+    private TextView txtProgresoFotos;
     private String[] fotosBase64;
     private CheckBox chkPropiedad;
     private CheckBox chkOrigenLicito;
@@ -66,6 +70,7 @@ public class ProductRequestActivity extends AppCompatActivity {
 
         getWindow().setStatusBarColor(android.graphics.Color.parseColor("#071827"));
         getWindow().setNavigationBarColor(android.graphics.Color.parseColor("#071827"));
+        SystemBars.configure(this, "#071827", false, "#071827", false);
 
         edtDescripcionCatalogo = findViewById(R.id.edtDescripcionCatalogo);
         edtDescripcionCompleta = findViewById(R.id.edtDescripcionCompleta);
@@ -75,6 +80,7 @@ public class ProductRequestActivity extends AppCompatActivity {
         chkPropiedad = findViewById(R.id.chkPropiedad);
         chkOrigenLicito = findViewById(R.id.chkOrigenLicito);
         txtMensajeSolicitud = findViewById(R.id.txtMensajeSolicitud);
+        txtProgresoFotos = findViewById(R.id.txtProgresoFotos);
         txtMisSolicitudes = findViewById(R.id.txtMisSolicitudes);
         contenedorMisSolicitudes = findViewById(R.id.contenedorMisSolicitudes);
         btnEnviarSolicitud = findViewById(R.id.btnEnviarSolicitud);
@@ -94,7 +100,8 @@ public class ProductRequestActivity extends AppCompatActivity {
                 findViewById(R.id.btnFoto5), findViewById(R.id.btnFoto6)
         };
 
-        for (int i = 0; i < botonesFotos.length; i++) {
+        botonesFotos[0].setOnClickListener(v -> seleccionarFotosMultiples());
+        for (int i = 1; i < botonesFotos.length; i++) {
             final int indice = i;
             if (botonesFotos[i] != null) {
                 botonesFotos[i].setOnClickListener(v -> seleccionarFoto(indice));
@@ -111,6 +118,11 @@ public class ProductRequestActivity extends AppCompatActivity {
             btnActualizarMisSolicitudes.setOnClickListener(v -> cargarMisSolicitudes());
         }
 
+    }
+
+    @Override
+    protected void onResume() {
+        super.onResume();
         cargarMisSolicitudes();
     }
 
@@ -140,7 +152,7 @@ public class ProductRequestActivity extends AppCompatActivity {
                     mainHandler.post(() -> txtMisSolicitudes.setText(err.optString("error", "Error")));
                 }
             } catch (Exception e) {
-                mainHandler.post(() -> txtMisSolicitudes.setText("Sin conexion"));
+                mainHandler.post(() -> txtMisSolicitudes.setText("Sin conexión con el servidor."));
             } finally {
                 if (connection != null) connection.disconnect();
             }
@@ -247,28 +259,80 @@ public class ProductRequestActivity extends AppCompatActivity {
         startActivityForResult(intent, REQ_FOTO_BASE + indice);
     }
 
+    private void seleccionarFotosMultiples() {
+        Intent intent = new Intent(Intent.ACTION_OPEN_DOCUMENT);
+        intent.addCategory(Intent.CATEGORY_OPENABLE);
+        intent.setType("image/*");
+        intent.putExtra(Intent.EXTRA_ALLOW_MULTIPLE, true);
+        startActivityForResult(intent, REQ_FOTOS_MULTIPLES);
+    }
+
     @Override
     protected void onActivityResult(int requestCode, int resultCode, @Nullable Intent data) {
         super.onActivityResult(requestCode, resultCode, data);
-        if (resultCode != RESULT_OK || data == null || data.getData() == null) return;
+        if (resultCode != RESULT_OK || data == null) return;
+
+        if (requestCode == REQ_FOTOS_MULTIPLES) {
+            try {
+                int cargadas = 0;
+                ClipData seleccion = data.getClipData();
+                if (seleccion != null) {
+                    int total = Math.min(seleccion.getItemCount(), TOTAL_FOTOS_REQUERIDAS);
+                    for (int i = 0; i < total; i++) {
+                        fotosBase64[i] = leerImagenBase64(seleccion.getItemAt(i).getUri());
+                        txtFotos[i].setText("Foto " + (i + 1) + " cargada");
+                        cargadas++;
+                    }
+                } else if (data.getData() != null) {
+                    fotosBase64[0] = leerImagenBase64(data.getData());
+                    txtFotos[0].setText("Foto 1 cargada");
+                    cargadas = 1;
+                }
+                actualizarProgresoFotos();
+                if (cargadas < TOTAL_FOTOS_REQUERIDAS) {
+                    FeedbackDialog.info(this, "Fotos pendientes", "Se cargaron " + cargadas + " fotos. Completá las restantes antes de enviar la consignación.");
+                }
+            } catch (Exception e) {
+                mostrarErrorSolicitud("No se pudieron procesar las fotos seleccionadas.");
+            }
+            return;
+        }
+
+        if (data.getData() == null) return;
         int indice = requestCode - REQ_FOTO_BASE;
         if (indice < 0 || indice >= TOTAL_FOTOS_REQUERIDAS) return;
         try {
             fotosBase64[indice] = leerImagenBase64(data.getData());
             txtFotos[indice].setText("Foto " + (indice + 1) + " cargada");
+            actualizarProgresoFotos();
         } catch (Exception e) {
             txtMensajeSolicitud.setText("No se pudo leer la foto.");
         }
     }
 
     private String leerImagenBase64(Uri uri) throws Exception {
-        InputStream is = getContentResolver().openInputStream(uri);
+        ImageDecoder.Source source = ImageDecoder.createSource(getContentResolver(), uri);
+        Bitmap bitmap = ImageDecoder.decodeBitmap(source, (decoder, info, src) -> {
+            int width = info.getSize().getWidth();
+            int height = info.getSize().getHeight();
+            int max = Math.max(width, height);
+            if (max > 1280) {
+                float ratio = 1280f / max;
+                decoder.setTargetSize(Math.round(width * ratio), Math.round(height * ratio));
+            }
+            decoder.setAllocator(ImageDecoder.ALLOCATOR_SOFTWARE);
+        });
         ByteArrayOutputStream out = new ByteArrayOutputStream();
-        byte[] buf = new byte[4096];
-        int n;
-        while (is != null && (n = is.read(buf)) != -1) out.write(buf, 0, n);
-        if (is != null) is.close();
+        bitmap.compress(Bitmap.CompressFormat.JPEG, 82, out);
+        bitmap.recycle();
         return Base64.encodeToString(out.toByteArray(), Base64.NO_WRAP);
+    }
+
+    private void actualizarProgresoFotos() {
+        int cargadas = 0;
+        for (String foto : fotosBase64) if (foto != null) cargadas++;
+        txtProgresoFotos.setText(cargadas + " de 6 fotos cargadas" + (cargadas == 6 ? ". Listas para enviar." : "."));
+        txtProgresoFotos.setTextColor(android.graphics.Color.parseColor(cargadas == 6 ? "#166534" : "#64748B"));
     }
 
     private void validarYEnviarSolicitud() {
@@ -361,8 +425,8 @@ public class ProductRequestActivity extends AppCompatActivity {
                     btnEnviarSolicitud.setEnabled(true);
                     btnEnviarSolicitud.setText("Enviar solicitud");
                     txtMensajeSolicitud.setTextColor(android.graphics.Color.parseColor("#DC2626"));
-                    txtMensajeSolicitud.setText("Sin conexion con el servidor.");
-                    FeedbackDialog.error(ProductRequestActivity.this, "Sin conexion con el servidor.");
+                    txtMensajeSolicitud.setText("Sin conexión con el servidor.");
+                    FeedbackDialog.error(ProductRequestActivity.this, "Sin conexión con el servidor.");
                 });
             } finally {
                 if (connection != null) connection.disconnect();
@@ -372,14 +436,14 @@ public class ProductRequestActivity extends AppCompatActivity {
 
     private void confirmarRespuestaPropuesta(int productId, String decision) {
         boolean acepta = "aceptar".equals(decision);
-        new AlertDialog.Builder(this)
-                .setTitle(acepta ? "Aceptar condiciones" : "Rechazar condiciones")
-                .setMessage(acepta
-                        ? "Si aceptas, la empresa podra incluir el bien en una subasta futura."
-                        : "Si rechazas, el bien no avanzara a catalogo/subasta y quedara marcado como rechazado por usuario.")
-                .setPositiveButton(acepta ? "ACEPTAR" : "RECHAZAR", (d, w) -> responderPropuesta(productId, decision))
-                .setNegativeButton("Cancelar", null)
-                .show();
+        FeedbackDialog.confirmar(
+                this,
+                acepta ? "Aceptar condiciones" : "Rechazar condiciones",
+                acepta
+                        ? "Al aceptar, autorizás a la empresa a incluir el bien en una subasta futura con el precio base y comisión informados."
+                        : "Al rechazar, el bien no avanzará a catálogo y la empresa informará el proceso de devolución y sus gastos.",
+                () -> responderPropuesta(productId, decision)
+        );
     }
 
     private void responderPropuesta(int productId, String decision) {
@@ -419,8 +483,8 @@ public class ProductRequestActivity extends AppCompatActivity {
                 });
             } catch (Exception e) {
                 mainHandler.post(() -> {
-                    txtMensajeSolicitud.setText("Sin conexion con el servidor.");
-                    FeedbackDialog.error(ProductRequestActivity.this, "Sin conexion con el servidor.");
+                    txtMensajeSolicitud.setText("Sin conexión con el servidor.");
+                    FeedbackDialog.error(ProductRequestActivity.this, "Sin conexión con el servidor.");
                 });
             } finally {
                 if (connection != null) connection.disconnect();
@@ -442,6 +506,7 @@ public class ProductRequestActivity extends AppCompatActivity {
         edtPrecioBaseSugerido.setText("");
         fotosBase64 = new String[TOTAL_FOTOS_REQUERIDAS];
         for (int i = 0; i < txtFotos.length; i++) txtFotos[i].setText("Foto " + (i + 1) + " pendiente");
+        actualizarProgresoFotos();
         chkPropiedad.setChecked(false);
         chkOrigenLicito.setChecked(false);
     }

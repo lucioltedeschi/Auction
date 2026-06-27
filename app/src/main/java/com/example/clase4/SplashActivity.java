@@ -19,6 +19,7 @@ public class SplashActivity extends AppCompatActivity {
 
         getWindow().setStatusBarColor(android.graphics.Color.parseColor("#061826"));
         getWindow().setNavigationBarColor(android.graphics.Color.parseColor("#061826"));
+        SystemBars.configure(this, "#061826", false, "#061826", false);
 
         new Handler(Looper.getMainLooper()).postDelayed(() -> {
             SharedPreferences preferences = getSharedPreferences("sesion", MODE_PRIVATE);

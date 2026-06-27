@@ -8,6 +8,7 @@ import android.os.Looper;
 import android.widget.Button;
 import android.widget.EditText;
 import android.widget.TextView;
+import android.view.inputmethod.EditorInfo;
 
 import androidx.appcompat.app.AppCompatActivity;
 
@@ -31,12 +32,6 @@ public class LoginActivity extends AppCompatActivity {
     private TextView txtRegistro;
     private Button btnIngresar;
 
-    /*
-     IMPORTANTE:
-     Reemplazá esta IP por la IP de tu PC.
-     Para verla, abrí CMD y ejecutá: ipconfig
-     Buscá "Dirección IPv4".
-    */
     private final ExecutorService executor = Executors.newSingleThreadExecutor();
     private final Handler mainHandler = new Handler(Looper.getMainLooper());
 
@@ -47,6 +42,7 @@ public class LoginActivity extends AppCompatActivity {
 
         getWindow().setStatusBarColor(android.graphics.Color.parseColor("#F3F6FA"));
         getWindow().setNavigationBarColor(android.graphics.Color.parseColor("#F3F6FA"));
+        SystemBars.configure(this, "#F3F6FA", true, "#F3F6FA", true);
 
         edtDocumento = findViewById(R.id.edtDocumento);
         edtClave = findViewById(R.id.edtClave);
@@ -55,6 +51,13 @@ public class LoginActivity extends AppCompatActivity {
         btnIngresar = findViewById(R.id.btnIngresar);
 
         btnIngresar.setOnClickListener(v -> validarLogin());
+        edtClave.setOnEditorActionListener((v, actionId, event) -> {
+            if (actionId == EditorInfo.IME_ACTION_DONE) {
+                validarLogin();
+                return true;
+            }
+            return false;
+        });
         txtRegistro.setOnClickListener(v -> {
             Intent intent = new Intent(LoginActivity.this, RegistroActivity.class);
             startActivity(intent);
@@ -66,12 +69,14 @@ public class LoginActivity extends AppCompatActivity {
         String clave = edtClave.getText().toString().trim();
 
         if (documento.isEmpty()) {
-            txtMensaje.setText("Ingresá el documento.");
+            edtDocumento.setError("Ingresá el documento");
+            edtDocumento.requestFocus();
             return;
         }
 
         if (clave.isEmpty()) {
-            txtMensaje.setText("Ingresá la clave.");
+            edtClave.setError("Ingresá la clave");
+            edtClave.requestFocus();
             return;
         }
 
@@ -147,6 +152,7 @@ public class LoginActivity extends AppCompatActivity {
                         btnIngresar.setEnabled(true);
                         btnIngresar.setText("Ingresar");
                         txtMensaje.setText(error);
+                        FeedbackDialog.error(LoginActivity.this, error);
                     });
                 }
 
@@ -154,7 +160,9 @@ public class LoginActivity extends AppCompatActivity {
                 mainHandler.post(() -> {
                     btnIngresar.setEnabled(true);
                     btnIngresar.setText("Ingresar");
-                    txtMensaje.setText("No se pudo conectar con el servidor.");
+                    String mensaje = "No se pudo conectar con el servidor.";
+                    txtMensaje.setText(mensaje);
+                    FeedbackDialog.error(LoginActivity.this, mensaje);
                 });
             } finally {
                 if (connection != null) {

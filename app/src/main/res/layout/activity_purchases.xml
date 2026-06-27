@@ -18,16 +18,14 @@
         android:paddingRight="14dp"
         android:paddingBottom="10dp">
 
-        <TextView
+        <ImageButton
             android:id="@+id/btnBackCompras"
-            android:layout_width="36dp"
-            android:layout_height="36dp"
+            android:layout_width="44dp"
+            android:layout_height="44dp"
             android:background="@drawable/bg_nav_icon_circle"
-            android:gravity="center"
-            android:text="←"
-            android:textColor="#FFFFFF"
-            android:textSize="18sp"
-            android:textStyle="bold" />
+            android:contentDescription="Volver"
+            android:padding="10dp"
+            android:src="@drawable/ic_arrow_back" />
 
         <LinearLayout
             android:layout_width="0dp"
@@ -105,7 +103,7 @@
                     android:layout_width="0dp"
                     android:layout_height="wrap_content"
                     android:layout_weight="1"
-                    android:text="Tenés 7 días para regularizar cada compra antes de que se genere una multa automática."
+                    android:text="Revisá la fecha límite de cada compra. Ante un impago se genera una multa del 10% y disponés de 72 horas para presentar los fondos."
                     android:textColor="#071827"
                     android:textSize="12sp"
                     android:lineSpacingExtra="3dp" />

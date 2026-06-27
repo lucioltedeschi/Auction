@@ -181,7 +181,10 @@ Si no hubo pujas para el lote:
 - Consignacion sin 6 fotos.
 - Rechazo/aceptacion de propuesta.
 
-## Pendientes conocidos
+## Estado de publicación
 
-- `database/CREAR_BASE.sql` crea estructura; los datos demo estan separados en `DATOS_DEMO_BASE.sql`, `ENTREGA3_DEMO_SUBASTAS.sql` y `DATOS_DEMO_MULTA.sql`.
-- Para cierre real de Entrega 3 falta publicar el backend en una URL accesible y recompilar el APK con esa URL.
+- Backend online: `https://auct-io-api.onrender.com`.
+- Base de datos: Azure SQL.
+- Android usa la URL pública por defecto y puede sobrescribirse con `-PAPI_BASE_URL`.
+- Validación automática pública: `npm run test:smoke:public`.
+- `database/CREAR_BASE.sql` crea estructura; los datos demo están separados en `DATOS_DEMO_BASE.sql`, `ENTREGA3_DEMO_SUBASTAS.sql` y `DATOS_DEMO_MULTA.sql`.

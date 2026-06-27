@@ -15,6 +15,7 @@ public class PendingVerificationActivity extends AppCompatActivity {
     protected void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
         setContentView(R.layout.activity_pending_verification);
+        SystemBars.configure(this, "#F4F7FB", true, "#F4F7FB", true);
 
         TextView txtDocumentoPendiente = findViewById(R.id.txtDocumentoPendiente);
         Button btnCompletarClavePendiente = findViewById(R.id.btnCompletarClavePendiente);

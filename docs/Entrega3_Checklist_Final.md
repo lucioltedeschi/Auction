@@ -63,6 +63,7 @@ COMPANY_CLIENT_ID=9000007
 
 ## Pendiente externo
 
-- Publicar backend en URL accesible desde internet.
-- Ejecutar scripts en base remota.
-- Recompilar APK apuntando a la URL publica.
+- Backend publicado en Render: `https://auct-io-api.onrender.com`.
+- Base remota operativa en Azure SQL.
+- APK configurado para consumir la URL publica de Render.
+- Prueba publica automatizada disponible con `npm run test:smoke:public`.

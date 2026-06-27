@@ -41,6 +41,7 @@ public class FinesActivity extends AppCompatActivity {
 
         getWindow().setStatusBarColor(android.graphics.Color.parseColor("#071827"));
         getWindow().setNavigationBarColor(android.graphics.Color.parseColor("#071827"));
+        SystemBars.configure(this, "#071827", false, "#071827", false);
 
         txtMensajeMultas = findViewById(R.id.txtMensajeMultas);
         contenedorMultas = findViewById(R.id.contenedorMultas);
@@ -51,6 +52,11 @@ public class FinesActivity extends AppCompatActivity {
         userId = preferences.getInt("userId", 0);
         token = preferences.getString("token", "");
 
+    }
+
+    @Override
+    protected void onResume() {
+        super.onResume();
         cargarMultas();
     }
 
@@ -166,7 +172,14 @@ public class FinesActivity extends AppCompatActivity {
         }
         btnPagar.setTextSize(11);
         btnPagar.setTypeface(null, android.graphics.Typeface.BOLD);
-        btnPagar.setOnClickListener(v -> pagarMulta(id));
+        if (!pagada.equals("si")) {
+            btnPagar.setOnClickListener(v -> FeedbackDialog.confirmar(
+                    this,
+                    "Regularizar multa",
+                    "Se registrará el pago de la multa #" + id + " por $" + String.format("%.2f", monto) + ". Al acreditarse, podrás volver a participar en subastas.",
+                    () -> pagarMulta(id)
+            ));
+        }
 
         card.addView(titulo);
         card.addView(detalle);
@@ -197,14 +210,24 @@ public class FinesActivity extends AppCompatActivity {
                 JSONObject json = new JSONObject(respuesta);
 
                 mainHandler.post(() -> {
-                    txtMensajeMultas.setText(json.optString(
+                    String mensaje = json.optString(
                             statusCode == 200 ? "mensaje" : "error",
                             statusCode == 200 ? "Multa marcada como pagada." : "No se pudo pagar la multa."
-                    ));
-                    cargarMultas();
+                    );
+                    txtMensajeMultas.setText(mensaje);
+                    if (statusCode == 200) {
+                        FeedbackDialog.ok(FinesActivity.this, mensaje);
+                        cargarMultas();
+                    } else {
+                        FeedbackDialog.error(FinesActivity.this, mensaje);
+                    }
                 });
             } catch (Exception e) {
-                mainHandler.post(() -> txtMensajeMultas.setText("No se pudo conectar con el servidor."));
+                mainHandler.post(() -> {
+                    String mensaje = "No se pudo conectar con el servidor.";
+                    txtMensajeMultas.setText(mensaje);
+                    FeedbackDialog.error(FinesActivity.this, mensaje);
+                });
             } finally {
                 if (connection != null) {
                     connection.disconnect();

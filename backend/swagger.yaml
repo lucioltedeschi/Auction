@@ -10,6 +10,8 @@ info:
     obtenido en /api/auth/login.
 
 servers:
+  - url: https://auct-io-api.onrender.com
+    description: Entrega 3 publicada en Render
   - url: http://localhost:3000
     description: Servidor local
 
@@ -741,6 +743,29 @@ paths:
           description: Valor fuera de rango (debe ser entre 1 y 60)
         "404":
           description: Subasta no encontrada
+
+  /api/clients/{clientId}/notifications:
+    get:
+      tags: [Usuarios]
+      summary: Listar avisos del cliente
+      parameters:
+        - $ref: "#/components/parameters/ClientId"
+      responses:
+        "200":
+          description: Avisos ordenados desde el más reciente
+
+  /api/notifications/{notificationId}/read:
+    patch:
+      tags: [Usuarios]
+      summary: Marcar un aviso como leído
+      parameters:
+        - name: notificationId
+          in: path
+          required: true
+          schema: { type: integer }
+      responses:
+        "200": { description: Aviso actualizado }
+        "404": { description: Aviso inexistente }
 
 # ── Components ────────────────────────────────────────────────────────────────
 

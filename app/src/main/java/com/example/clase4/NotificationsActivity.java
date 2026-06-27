@@ -40,6 +40,7 @@ public class NotificationsActivity extends AppCompatActivity {
 
         getWindow().setStatusBarColor(android.graphics.Color.parseColor("#071827"));
         getWindow().setNavigationBarColor(android.graphics.Color.parseColor("#071827"));
+        SystemBars.configure(this, "#071827", false, "#071827", false);
 
         txtMensajeNotificaciones = findViewById(R.id.txtMensajeNotificaciones);
         contenedorNotificaciones = findViewById(R.id.contenedorNotificaciones);
@@ -50,6 +51,11 @@ public class NotificationsActivity extends AppCompatActivity {
         userId = preferences.getInt("userId", 0);
         token = preferences.getString("token", "");
 
+    }
+
+    @Override
+    protected void onResume() {
+        super.onResume();
         cargarNotificaciones();
     }
 
@@ -142,6 +148,7 @@ public class NotificationsActivity extends AppCompatActivity {
         card.setOrientation(LinearLayout.VERTICAL);
         card.setPadding(pad, pad, pad, pad);
         card.setBackgroundResource(R.drawable.bg_card_premium);
+        card.setContentDescription("Aviso " + titulo + (leida.equals("si") ? ", leído" : ", nuevo. Tocar para marcar como leído"));
 
         LinearLayout.LayoutParams params = new LinearLayout.LayoutParams(
                 LinearLayout.LayoutParams.MATCH_PARENT,
@@ -197,7 +204,39 @@ public class NotificationsActivity extends AppCompatActivity {
         card.addView(txtMensaje);
         card.addView(txtDetalle);
 
+        if (!leida.equals("si")) {
+            card.setClickable(true);
+            card.setFocusable(true);
+            card.setForeground(getDrawable(android.R.drawable.list_selector_background));
+            card.setOnClickListener(v -> marcarComoLeida(id));
+        }
+
         return card;
+    }
+
+    private void marcarComoLeida(int notificationId) {
+        executor.execute(() -> {
+            HttpURLConnection connection = null;
+            try {
+                URL url = new URL(ApiConfig.BASE_URL + "/api/notifications/" + notificationId + "/read");
+                connection = (HttpURLConnection) url.openConnection();
+                connection.setRequestMethod("POST");
+                connection.setRequestProperty("X-HTTP-Method-Override", "PATCH");
+                connection.setRequestProperty("Accept", "application/json");
+                connection.setRequestProperty("Authorization", "Bearer " + token);
+                connection.setDoOutput(true);
+                int statusCode = connection.getResponseCode();
+                if (statusCode >= 200 && statusCode < 300) {
+                    mainHandler.post(this::cargarNotificaciones);
+                } else {
+                    mainHandler.post(() -> FeedbackDialog.error(this, "No se pudo marcar el aviso como leído."));
+                }
+            } catch (Exception e) {
+                mainHandler.post(() -> FeedbackDialog.error(this, "No se pudo conectar con el servidor."));
+            } finally {
+                if (connection != null) connection.disconnect();
+            }
+        });
     }
 
     private String leerRespuesta(InputStream inputStream) throws Exception {

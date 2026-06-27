@@ -59,6 +59,7 @@ public class UserReviewActivity extends AppCompatActivity {
 
         getWindow().setStatusBarColor(Color.parseColor("#071827"));
         getWindow().setNavigationBarColor(Color.parseColor("#F3F0E8"));
+        SystemBars.configure(this, "#071827", false, "#F3F0E8", true);
 
         txtReviewNombre = findViewById(R.id.txtReviewNombre);
         txtReviewDocumento = findViewById(R.id.txtReviewDocumento);
@@ -236,21 +237,17 @@ public class UserReviewActivity extends AppCompatActivity {
 
     private void confirmarAprobacion() {
         String categoria = categoriaSeleccionada();
-        new AlertDialog.Builder(this)
-                .setTitle("Aprobar usuario")
-                .setMessage("Vas a habilitar a este usuario con categoría \"" + categoria + "\". ¿Confirmás?")
-                .setPositiveButton("APROBAR", (d, w) -> enviarVerificacion("si"))
-                .setNegativeButton("Cancelar", null)
-                .show();
+        FeedbackDialog.confirmar(this,
+                "Aprobar usuario",
+                "Vas a habilitar a este usuario con categoría \"" + categoria + "\".",
+                () -> enviarVerificacion("si"));
     }
 
     private void confirmarRechazo() {
-        new AlertDialog.Builder(this)
-                .setTitle("Rechazar usuario")
-                .setMessage("El usuario quedará rechazado y no podrá operar. ¿Confirmás?")
-                .setPositiveButton("RECHAZAR", (d, w) -> enviarVerificacion("no"))
-                .setNegativeButton("Cancelar", null)
-                .show();
+        FeedbackDialog.confirmar(this,
+                "Rechazar usuario",
+                "El usuario quedará rechazado y no podrá operar.",
+                () -> enviarVerificacion("no"));
     }
 
     private void enviarVerificacion(String admitido) {

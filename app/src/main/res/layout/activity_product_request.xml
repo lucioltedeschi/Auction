@@ -208,13 +208,25 @@
                     android:textSize="11sp"
                     android:textStyle="bold" />
 
+                <TextView
+                    android:id="@+id/txtProgresoFotos"
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:layout_marginTop="6dp"
+                    android:text="0 de 6 fotos cargadas. Podés elegir las seis juntas."
+                    android:textColor="#64748B"
+                    android:textSize="12sp" />
+
                 <Button
                     android:id="@+id/btnFoto1"
                     android:layout_width="match_parent"
                     android:layout_height="48dp"
                     android:layout_marginTop="12dp"
                     android:background="@drawable/bg_button_outline"
-                    android:text="FOTO 1"
+                    android:drawableStart="@drawable/ic_action_photo"
+                    android:drawablePadding="8dp"
+                    android:drawableTint="#071827"
+                    android:text="SELECCIONAR HASTA 6 FOTOS"
                     android:textColor="#071827"
                     android:textSize="12sp"
                     android:textStyle="bold" />
@@ -234,7 +246,7 @@
                     android:layout_height="48dp"
                     android:layout_marginTop="8dp"
                     android:background="@drawable/bg_button_outline"
-                    android:text="FOTO 2"
+                    android:text="CARGAR O REEMPLAZAR FOTO 2"
                     android:textColor="#071827"
                     android:textSize="12sp"
                     android:textStyle="bold" />
@@ -254,7 +266,7 @@
                     android:layout_height="48dp"
                     android:layout_marginTop="8dp"
                     android:background="@drawable/bg_button_outline"
-                    android:text="FOTO 3"
+                    android:text="CARGAR O REEMPLAZAR FOTO 3"
                     android:textColor="#071827"
                     android:textSize="12sp"
                     android:textStyle="bold" />
@@ -274,7 +286,7 @@
                     android:layout_height="48dp"
                     android:layout_marginTop="8dp"
                     android:background="@drawable/bg_button_outline"
-                    android:text="FOTO 4"
+                    android:text="CARGAR O REEMPLAZAR FOTO 4"
                     android:textColor="#071827"
                     android:textSize="12sp"
                     android:textStyle="bold" />
@@ -294,7 +306,7 @@
                     android:layout_height="48dp"
                     android:layout_marginTop="8dp"
                     android:background="@drawable/bg_button_outline"
-                    android:text="FOTO 5"
+                    android:text="CARGAR O REEMPLAZAR FOTO 5"
                     android:textColor="#071827"
                     android:textSize="12sp"
                     android:textStyle="bold" />
@@ -314,7 +326,7 @@
                     android:layout_height="48dp"
                     android:layout_marginTop="8dp"
                     android:background="@drawable/bg_button_outline"
-                    android:text="FOTO 6"
+                    android:text="CARGAR O REEMPLAZAR FOTO 6"
                     android:textColor="#071827"
                     android:textSize="12sp"
                     android:textStyle="bold" />
@@ -363,6 +375,9 @@
                     android:layout_height="52dp"
                     android:layout_marginTop="16dp"
                     android:background="@drawable/bg_button_gold"
+                    android:drawableStart="@drawable/ic_action_send"
+                    android:drawablePadding="8dp"
+                    android:drawableTint="#071827"
                     android:text="ENVIAR SOLICITUD"
                     android:textColor="#071827"
                     android:textStyle="bold" />
@@ -393,6 +408,8 @@
                 android:layout_height="42dp"
                 android:layout_marginTop="12dp"
                 android:background="@drawable/bg_button_dark"
+                android:drawableStart="@drawable/ic_action_refresh"
+                android:drawablePadding="8dp"
                 android:text="ACTUALIZAR MIS CONSIGNACIONES"
                 android:textColor="#FFFFFF"
                 android:textSize="11sp"

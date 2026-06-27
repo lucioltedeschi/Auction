@@ -67,6 +67,7 @@ public class ProfileActivity extends AppCompatActivity {
 
         getWindow().setStatusBarColor(Color.parseColor("#F3F0E8"));
         getWindow().setNavigationBarColor(Color.parseColor("#F3F0E8"));
+        SystemBars.configure(this, "#F3F0E8", true, "#F3F0E8", true);
         BottomNavHelper.configurar(this);
 
         txtProfileInitials = findViewById(R.id.txtProfileInitials);

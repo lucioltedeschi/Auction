@@ -41,6 +41,7 @@ public class PurchasesActivity extends AppCompatActivity {
 
         getWindow().setStatusBarColor(Color.parseColor("#071827"));
         getWindow().setNavigationBarColor(Color.parseColor("#071827"));
+        SystemBars.configure(this, "#071827", false, "#071827", false);
 
         txtMensajeCompras = findViewById(R.id.txtMensajeCompras);
         contenedorCompras = findViewById(R.id.contenedorCompras);
@@ -51,6 +52,11 @@ public class PurchasesActivity extends AppCompatActivity {
         userId = preferences.getInt("userId", 0);
         token = preferences.getString("token", "");
 
+    }
+
+    @Override
+    protected void onResume() {
+        super.onResume();
         cargarCompras();
     }
 
@@ -214,7 +220,12 @@ public class PurchasesActivity extends AppCompatActivity {
             btnPagar.setText("REGISTRAR PAGO");
             btnPagar.setBackgroundResource(R.drawable.bg_button_gold);
             btnPagar.setTextColor(Color.parseColor("#071827"));
-            btnPagar.setOnClickListener(v -> pagarCompra(ventaId));
+            btnPagar.setOnClickListener(v -> FeedbackDialog.confirmar(
+                    this,
+                    "Confirmar pago",
+                    "Se registrará el pago de la compra #" + ventaId + " por un total de $" + String.format("%.2f", total) + ".",
+                    () -> pagarCompra(ventaId)
+            ));
         }
         btnPagar.setTextSize(12);
         btnPagar.setTypeface(null, android.graphics.Typeface.BOLD);
@@ -249,13 +260,20 @@ public class PurchasesActivity extends AppCompatActivity {
 
                 mainHandler.post(() -> {
                     if (statusCode == 200) {
+                        FeedbackDialog.ok(PurchasesActivity.this, "El pago quedó acreditado correctamente.");
                         cargarCompras();
                     } else {
-                        txtMensajeCompras.setText(json.optString("error", "No se pudo registrar el pago."));
+                        String mensaje = json.optString("error", "No se pudo registrar el pago.");
+                        txtMensajeCompras.setText(mensaje);
+                        FeedbackDialog.error(PurchasesActivity.this, mensaje);
                     }
                 });
             } catch (Exception e) {
-                mainHandler.post(() -> txtMensajeCompras.setText("No se pudo conectar con el servidor."));
+                mainHandler.post(() -> {
+                    String mensaje = "No se pudo conectar con el servidor.";
+                    txtMensajeCompras.setText(mensaje);
+                    FeedbackDialog.error(PurchasesActivity.this, mensaje);
+                });
             } finally {
                 if (connection != null) connection.disconnect();
             }

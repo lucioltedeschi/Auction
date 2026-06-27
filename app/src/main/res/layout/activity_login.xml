@@ -23,6 +23,7 @@
             android:layout_width="100dp"
             android:layout_height="100dp"
             android:adjustViewBounds="true"
+            android:contentDescription="Logo Auct.io"
             android:scaleType="centerInside"
             android:src="@drawable/logo" />
 
@@ -87,10 +88,11 @@
             <EditText
                 android:id="@+id/edtDocumento"
                 android:layout_width="match_parent"
-                android:layout_height="46dp"
+                android:layout_height="50dp"
                 android:layout_marginTop="6dp"
                 android:background="@drawable/bg_input_premium"
                 android:hint="30123456"
+                android:imeOptions="actionNext"
                 android:inputType="number"
                 android:paddingLeft="14dp"
                 android:paddingRight="14dp"
@@ -111,10 +113,11 @@
             <EditText
                 android:id="@+id/edtClave"
                 android:layout_width="match_parent"
-                android:layout_height="46dp"
+                android:layout_height="50dp"
                 android:layout_marginTop="6dp"
                 android:background="@drawable/bg_input_premium"
                 android:hint="********"
+                android:imeOptions="actionDone"
                 android:inputType="textPassword"
                 android:paddingLeft="14dp"
                 android:paddingRight="14dp"
@@ -138,6 +141,7 @@
                 android:layout_height="48dp"
                 android:layout_marginTop="10dp"
                 android:background="@drawable/bg_button_gold"
+                android:contentDescription="Iniciar sesión"
                 android:text="INGRESAR"
                 android:textColor="#061826"
                 android:textSize="14sp"

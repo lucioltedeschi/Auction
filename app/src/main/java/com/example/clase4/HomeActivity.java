@@ -33,7 +33,6 @@ public class HomeActivity extends AppCompatActivity {
     private Button btnActualizarSubastas;
     private LinearLayout contenedorSubastas;
 
-    // tiles reemplazados por LinearLayout — se acceden via findViewById directo
     private Button btnMediosPago = null;
     private Button btnSolicitarSubasta = null;
     private Button btnHistorial = null;
@@ -42,11 +41,6 @@ public class HomeActivity extends AppCompatActivity {
     private Button btnMultas = null;
     private Button btnCompras = null;
     private Button btnAdmin = null;
-
-    /*
-     IMPORTANTE:
-     Usá la misma IP que pusiste en LoginActivity.java.
-    */
 
     private int userId;
     private String token;
@@ -61,6 +55,7 @@ public class HomeActivity extends AppCompatActivity {
 
         getWindow().setStatusBarColor(android.graphics.Color.parseColor("#F3F0E8"));
         getWindow().setNavigationBarColor(android.graphics.Color.parseColor("#F3F0E8"));
+        SystemBars.configure(this, "#F3F0E8", true, "#F3F0E8", true);
 
         BottomNavHelper.configurar(this);
 
@@ -89,7 +84,7 @@ public class HomeActivity extends AppCompatActivity {
 
         String nombreCompleto = (nombre + " " + apellido).trim();
         txtBienvenida.setText(nombreCompleto.isEmpty() ? "Bienvenido" : "Bienvenido, " + nombreCompleto);
-        txtCategoria.setText("Categoria: " + categoria);
+        txtCategoria.setText("Categoría: " + categoria);
 
         View tileAdmin = findViewById(R.id.btnAdmin);
         tileAdmin.setVisibility(esAdmin ? View.VISIBLE : View.GONE);
@@ -120,7 +115,6 @@ public class HomeActivity extends AppCompatActivity {
         tileAdmin.setOnClickListener(v ->
                 startActivity(new Intent(HomeActivity.this, AdminActivity.class)));
 
-        cargarSubastas();
         if (getIntent().getBooleanExtra("goToAuctions", false)) {
             View tituloSubastas = findViewById(R.id.txtTituloSubastas);
 
@@ -128,6 +122,12 @@ public class HomeActivity extends AppCompatActivity {
                 tituloSubastas.postDelayed(() -> irASeccionSubastas(), 500);
             }
         }
+    }
+
+    @Override
+    protected void onResume() {
+        super.onResume();
+        cargarSubastas();
     }
 
     private void cargarSubastas() {

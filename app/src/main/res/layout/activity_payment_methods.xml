@@ -18,16 +18,14 @@
         android:paddingRight="14dp"
         android:paddingBottom="10dp">
 
-        <TextView
+        <ImageButton
             android:id="@+id/btnBackMediosPago"
-            android:layout_width="36dp"
-            android:layout_height="36dp"
+            android:layout_width="44dp"
+            android:layout_height="44dp"
             android:background="@drawable/bg_nav_icon_circle"
-            android:gravity="center"
-            android:text="←"
-            android:textColor="#FFFFFF"
-            android:textSize="18sp"
-            android:textStyle="bold" />
+            android:contentDescription="Volver"
+            android:padding="10dp"
+            android:src="@drawable/ic_arrow_back" />
 
         <LinearLayout
             android:layout_width="0dp"
@@ -97,6 +95,8 @@
                 android:layout_height="52dp"
                 android:layout_marginTop="16dp"
                 android:background="@drawable/bg_button_dark"
+                android:drawableStart="@drawable/ic_action_add"
+                android:drawablePadding="8dp"
                 android:text="Cuenta bancaria"
                 android:textColor="#FFFFFF"
                 android:textSize="13sp"
@@ -108,6 +108,8 @@
                 android:layout_height="52dp"
                 android:layout_marginTop="8dp"
                 android:background="@drawable/bg_button_dark"
+                android:drawableStart="@drawable/ic_action_add"
+                android:drawablePadding="8dp"
                 android:text="Tarjeta de crédito"
                 android:textColor="#FFFFFF"
                 android:textSize="13sp"
@@ -119,6 +121,8 @@
                 android:layout_height="52dp"
                 android:layout_marginTop="8dp"
                 android:background="@drawable/bg_button_dark"
+                android:drawableStart="@drawable/ic_action_add"
+                android:drawablePadding="8dp"
                 android:text="Cheque certificado"
                 android:textColor="#FFFFFF"
                 android:textSize="13sp"

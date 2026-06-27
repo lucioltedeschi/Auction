@@ -60,6 +60,7 @@ public class PaymentMethodFormActivity extends AppCompatActivity {
 
         getWindow().setStatusBarColor(android.graphics.Color.parseColor("#071827"));
         getWindow().setNavigationBarColor(android.graphics.Color.parseColor("#F3F0E8"));
+        SystemBars.configure(this, "#071827", false, "#F3F0E8", true);
 
         txtTituloFlujoPago = findViewById(R.id.txtTituloFlujoPago);
         txtDescripcionFlujoPago = findViewById(R.id.txtDescripcionFlujoPago);
