@@ -20,8 +20,10 @@ import org.json.JSONObject;
 import java.io.BufferedReader;
 import java.io.InputStream;
 import java.io.InputStreamReader;
+import java.io.OutputStream;
 import java.net.HttpURLConnection;
 import java.net.URL;
+import java.nio.charset.StandardCharsets;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 
@@ -157,8 +159,10 @@ public class SubastasActivity extends AppCompatActivity {
                 String moneda = formatearMoneda(subasta.optString("moneda", "-"));
                 boolean puedePujar = subasta.optBoolean("puedePujar", false);
                 String motivoBloqueo = subasta.optString("motivoBloqueo", "");
+                int subastaActivaId = subasta.optInt("subastaActivaId", 0);
 
-                View card = crearCardSubasta(id, fecha, hora, estado, ubicacion, categoria, moneda, puedePujar, motivoBloqueo);
+                View card = crearCardSubasta(id, fecha, hora, estado, ubicacion, categoria,
+                        moneda, puedePujar, motivoBloqueo, subastaActivaId);
                 contenedorSubastas.addView(card);
             }
         } catch (Exception e) {
@@ -172,7 +176,7 @@ public class SubastasActivity extends AppCompatActivity {
 
     private View crearCardSubasta(int id, String fecha, String hora, String estado,
                                    String ubicacion, String categoria, String moneda,
-                                   boolean puedePujar, String motivoBloqueo) {
+                                   boolean puedePujar, String motivoBloqueo, int subastaActivaId) {
         LinearLayout card = new LinearLayout(this);
         card.setOrientation(LinearLayout.VERTICAL);
         card.setPadding(dp(16), dp(16), dp(16), dp(18));
@@ -307,7 +311,10 @@ public class SubastasActivity extends AppCompatActivity {
 
         // BOTÓN
         Button btnVerDetalle = new Button(this);
-        btnVerDetalle.setText(puedePujar ? "ENTRAR AL CATALOGO" : "VER CATALOGO");
+        boolean puedeCambiar = !puedePujar && subastaActivaId > 0 && subastaActivaId != id
+                && motivoBloqueo.toLowerCase().contains("conectado");
+        btnVerDetalle.setText(puedeCambiar ? "CAMBIAR A ESTA SUBASTA"
+                : (puedePujar ? "ENTRAR AL CATALOGO" : "VER CATALOGO"));
         btnVerDetalle.setTextColor(Color.parseColor("#071827"));
         btnVerDetalle.setTextSize(12);
         btnVerDetalle.setTypeface(null, android.graphics.Typeface.BOLD);
@@ -317,11 +324,14 @@ public class SubastasActivity extends AppCompatActivity {
         btnParams.setMargins(0, dp(16), 0, 0);
         btnVerDetalle.setLayoutParams(btnParams);
         btnVerDetalle.setOnClickListener(v -> {
-            Intent intent = new Intent(SubastasActivity.this, AuctionDetailActivity.class);
-            intent.putExtra("auctionId", id);
-            intent.putExtra("puedePujar", puedePujar);
-            intent.putExtra("categoria", categoria);
-            startActivity(intent);
+            if (puedeCambiar) {
+                FeedbackDialog.confirmar(this, "Cambiar de subasta",
+                        "Podés salir de la subasta #" + subastaActivaId
+                                + " si todavía no registraste ninguna puja. ¿Querés cambiar ahora?",
+                        () -> liberarYEntrar(subastaActivaId, id, categoria));
+            } else {
+                abrirSubasta(id, categoria, puedePujar);
+            }
         });
 
         card.addView(visual);
@@ -332,6 +342,49 @@ public class SubastasActivity extends AppCompatActivity {
         card.addView(btnVerDetalle);
 
         return card;
+    }
+
+    private void abrirSubasta(int id, String categoria, boolean habilitado) {
+        Intent intent = new Intent(SubastasActivity.this, AuctionDetailActivity.class);
+        intent.putExtra("auctionId", id);
+        intent.putExtra("puedePujar", habilitado);
+        intent.putExtra("categoria", categoria);
+        startActivity(intent);
+    }
+
+    private void liberarYEntrar(int actualId, int destinoId, String categoria) {
+        executor.execute(() -> {
+            HttpURLConnection connection = null;
+            try {
+                connection = (HttpURLConnection) new URL(ApiConfig.BASE_URL + "/api/clients/"
+                        + userId + "/active-auction/release").openConnection();
+                connection.setRequestMethod("POST");
+                connection.setRequestProperty("Content-Type", "application/json; charset=UTF-8");
+                connection.setRequestProperty("Authorization", "Bearer " + token);
+                connection.setDoOutput(true);
+                JSONObject body = new JSONObject();
+                body.put("auctionId", actualId);
+                try (OutputStream os = connection.getOutputStream()) {
+                    os.write(body.toString().getBytes(StandardCharsets.UTF_8));
+                }
+                int status = connection.getResponseCode();
+                String respuesta = leerRespuesta(status < 300
+                        ? connection.getInputStream() : connection.getErrorStream());
+                if (status >= 200 && status < 300) {
+                    ultimaRespuestaSubastas = null;
+                    mainHandler.post(() -> abrirSubasta(destinoId, categoria, true));
+                } else {
+                    String error = new JSONObject(respuesta).optString("error",
+                            "No se pudo abandonar la subasta actual.");
+                    mainHandler.post(() -> FeedbackDialog.error(this, error));
+                }
+            } catch (Exception e) {
+                mainHandler.post(() -> FeedbackDialog.error(this,
+                        "No se pudo comprobar si podés cambiar de subasta."));
+            } finally {
+                if (connection != null) connection.disconnect();
+            }
+        });
     }
 
     private String leerRespuesta(InputStream inputStream) throws Exception {

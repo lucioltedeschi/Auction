@@ -58,6 +58,7 @@ public class AuctionDetailActivity extends AppCompatActivity {
     private String token;
     private volatile boolean escuchandoEventos;
     private HttpURLConnection conexionEventos;
+    private double ultimaMejorOfertaViva = -1;
 
     // Countdown timer
     private volatile int segundosRestantes = 0;
@@ -236,30 +237,38 @@ public class AuctionDetailActivity extends AppCompatActivity {
     private void escucharEventosEnVivo() {
         escuchandoEventos = true;
         eventExecutor.execute(() -> {
-            try {
-                URL url = new URL(ApiConfig.BASE_URL + "/api/auctions/" + auctionId + "/events");
-                conexionEventos = (HttpURLConnection) url.openConnection();
-                conexionEventos.setRequestMethod("GET");
-                conexionEventos.setRequestProperty("Accept", "text/event-stream");
-                conexionEventos.setRequestProperty("Authorization", "Bearer " + token);
+            while (escuchandoEventos) {
+                try {
+                    URL url = new URL(ApiConfig.BASE_URL + "/api/auctions/" + auctionId + "/events");
+                    conexionEventos = (HttpURLConnection) url.openConnection();
+                    conexionEventos.setRequestMethod("GET");
+                    conexionEventos.setConnectTimeout(15000);
+                    conexionEventos.setReadTimeout(0);
+                    conexionEventos.setRequestProperty("Accept", "text/event-stream");
+                    conexionEventos.setRequestProperty("Authorization", "Bearer " + token);
 
-                BufferedReader reader = new BufferedReader(
-                        new InputStreamReader(conexionEventos.getInputStream())
-                );
-                String linea;
-                while (escuchandoEventos && (linea = reader.readLine()) != null) {
-                    if (linea.startsWith("data: ")) {
-                        JSONObject estado = new JSONObject(linea.substring(6));
-                        mainHandler.post(() -> procesarEstadoVivo(estado));
+                    BufferedReader reader = new BufferedReader(
+                            new InputStreamReader(conexionEventos.getInputStream())
+                    );
+                    String linea;
+                    while (escuchandoEventos && (linea = reader.readLine()) != null) {
+                        if (linea.startsWith("data: ")) {
+                            JSONObject estado = new JSONObject(linea.substring(6));
+                            mainHandler.post(() -> procesarEstadoVivo(estado));
+                        }
+                    }
+                } catch (Exception e) {
+                    if (escuchandoEventos) mainHandler.post(() -> {
+                        if (txtItemVivo != null) txtItemVivo.setText("Reconectando estado en vivo...");
+                    });
+                } finally {
+                    if (conexionEventos != null) conexionEventos.disconnect();
+                }
+                if (escuchandoEventos) {
+                    try { Thread.sleep(1500); } catch (InterruptedException ignored) {
+                        Thread.currentThread().interrupt();
                     }
                 }
-            } catch (Exception e) {
-                mainHandler.post(() -> {
-                    if (txtItemVivo != null)
-                        txtItemVivo.setText("Sin conexión en vivo");
-                });
-            } finally {
-                if (conexionEventos != null) conexionEventos.disconnect();
             }
         });
     }
@@ -305,6 +314,12 @@ public class AuctionDetailActivity extends AppCompatActivity {
             String nuevoItemId = itemActual != null ? String.valueOf(itemActual.optInt("itemId", 0)) : "";
             double mejorOferta = estado.optDouble("mejorOferta", 0);
             double pujaMinima = estado.optDouble("pujaMinima", 0);
+
+            if (ultimaMejorOfertaViva >= 0
+                    && Math.abs(ultimaMejorOfertaViva - mejorOferta) > 0.001) {
+                cargarCatalogo();
+            }
+            ultimaMejorOfertaViva = mejorOferta;
 
             // El backend ya envía el tiempo en SEGUNDOS (no en minutos).
             String fase = estado.optString("fase", "");
@@ -556,7 +571,8 @@ public class AuctionDetailActivity extends AppCompatActivity {
         executor.execute(() -> {
             HttpURLConnection connection = null;
             try {
-                URL url = new URL(ApiConfig.BASE_URL + "/api/auctions/" + auctionId + "/catalog");
+                URL url = new URL(ApiConfig.BASE_URL + "/api/auctions/" + auctionId
+                        + "/catalog?clientId=" + userId);
                 connection = (HttpURLConnection) url.openConnection();
                 connection.setRequestMethod("GET");
                 connection.setRequestProperty("Accept", "application/json");
@@ -602,12 +618,13 @@ public class AuctionDetailActivity extends AppCompatActivity {
                 double precioBase = item.optDouble("precioBase", 0);
                 double comision = item.optDouble("comision", 0);
                 double mejorOferta = item.optDouble("mejorOferta", precioBase);
+                double miMejorOferta = item.optDouble("miMejorOferta", 0);
                 String vendido = item.optString("vendido", "no");
                 boolean esItemActivo = String.valueOf(itemId).equals(itemIdVivo);
 
                 View card = crearCardCatalogo(itemId, productId, descripcionCatalogo,
                         descripcionCompleta, historia, artistaDiseniador,
-                        precioBase, comision, mejorOferta, vendido, esItemActivo);
+                        precioBase, comision, mejorOferta, miMejorOferta, vendido, esItemActivo);
                 card.setTag(itemId); // used for scroll-to
                 contenedorCatalogo.addView(card);
             }
@@ -619,7 +636,7 @@ public class AuctionDetailActivity extends AppCompatActivity {
     private View crearCardCatalogo(
             int itemId, int productId, String descripcionCatalogo,
             String descripcionCompleta, String historia, String artistaDiseniador,
-            double precioBase, double comision, double mejorOferta,
+            double precioBase, double comision, double mejorOferta, double miMejorOferta,
             String vendido, boolean esItemActivo
     ) {
         LinearLayout card = new LinearLayout(this);
@@ -738,6 +755,27 @@ public class AuctionDetailActivity extends AppCompatActivity {
         metricsRow.addView(bidBox);
         metricsRow.addView(baseBox);
 
+        TextView miParticipacion = new TextView(this);
+        if (miMejorOferta > 0) {
+            boolean liderando = miMejorOferta >= mejorOferta;
+            miParticipacion.setText((liderando ? "VAS LIDERANDO" : "TU OFERTA FUE SUPERADA")
+                    + "  ·  TU MEJOR: $" + String.format("%.2f", miMejorOferta));
+            miParticipacion.setTextColor(Color.parseColor(liderando ? "#166534" : "#991B1B"));
+            miParticipacion.setBackgroundResource(liderando
+                    ? R.drawable.bg_success_chip : R.drawable.bg_danger_chip);
+            miParticipacion.setVisibility(View.VISIBLE);
+        } else {
+            miParticipacion.setVisibility(View.GONE);
+        }
+        miParticipacion.setTextSize(11);
+        miParticipacion.setTypeface(null, android.graphics.Typeface.BOLD);
+        miParticipacion.setGravity(android.view.Gravity.CENTER);
+        miParticipacion.setPadding(dp(12), dp(9), dp(12), dp(9));
+        LinearLayout.LayoutParams participacionParams = new LinearLayout.LayoutParams(
+                LinearLayout.LayoutParams.MATCH_PARENT, LinearLayout.LayoutParams.WRAP_CONTENT);
+        participacionParams.setMargins(0, dp(10), 0, 0);
+        miParticipacion.setLayoutParams(participacionParams);
+
         // INFO PANEL
         LinearLayout infoPanel = new LinearLayout(this);
         infoPanel.setOrientation(LinearLayout.VERTICAL);
@@ -820,6 +858,7 @@ public class AuctionDetailActivity extends AppCompatActivity {
         card.addView(fotoProducto);
         card.addView(descripcion);
         card.addView(metricsRow);
+        card.addView(miParticipacion);
         card.addView(infoPanel);
         card.addView(security);
         card.addView(btnPujar);

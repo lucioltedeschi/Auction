@@ -17,7 +17,7 @@ La aplicación cubre el recorrido demostrable de registro, verificación, medios
 | Catálogo, precio base y fotografías | Cumple | Catálogo por lotes y galería; consignación exige al menos seis fotos. |
 | Puja ascendente y confirmada por servidor | Cumple | El servidor calcula mejor oferta, mínimo y máximo antes de insertar. |
 | Incremento mínimo 1% y máximo 20% | Cumple | Aplicado sobre precio base respecto de la mejor oferta; excepción oro/platino. |
-| Una sola subasta conectada por cliente | Cumple | Sesión activa con liberación explícita y vencimiento de seguridad. |
+| Una sola subasta conectada por cliente | Cumple | Sesión activa; permite cambiar si aún no ofertó y conserva el vínculo si ya pujó. |
 | Moneda única y compatibilidad para USD | Cumple | Solo acepta cuenta bancaria, tarjeta internacional o cheque compatible y verificado. |
 | Límite de cheque certificado | Cumple | La puja y el cierre controlan monto disponible; se descuenta al adjudicar. |
 | Conservación de todas las pujas | Cumple | Historial persistente por lote, ordenado por fecha/hora. |
@@ -27,7 +27,7 @@ La aplicación cubre el recorrido demostrable de registro, verificación, medios
 | Avisos de acciones relevantes | Cumple | Puja, perfil, medios, consignación, propuestas, adjudicación, pago y multas generan avisos. |
 | Estadísticas del cliente | Cumple | Subastas, lotes, pujas, ganados, importes, consignaciones, avisos y categorías. |
 | ABM administrativo | Cumple | Subastas completas, verificaciones, propuestas, asignación, cierre y multas sin IDs manuales. |
-| Tiempo real | Cumple | Estado vivo por SSE, cuenta regresiva y avance de lote. |
+| Tiempo real | Cumple | SSE cada 2 s con reconexión; actualiza mejor oferta, catálogo, liderazgo e historial sin refrescar. |
 | Video de la subasta | No requerido | La consigna declara expresamente que la transmisión de video queda fuera del alcance. |
 
 ## Integraciones representadas en la demo

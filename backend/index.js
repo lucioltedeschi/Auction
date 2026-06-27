@@ -1148,8 +1148,35 @@ app.post("/api/clients/:clientId/active-auction", async (req, res) => {
 
 app.post("/api/clients/:clientId/active-auction/release", async (req, res) => {
   try {
-    liberarSesionActiva(req.params.clientId, req.body.auctionId);
-    res.status(200).json({ mensaje: "Conexion de subasta liberada" });
+    const clientId = Number(req.params.clientId);
+    const auctionId = Number(req.body.auctionId);
+    const pool = await poolPromise;
+    const participacion = await pool.request()
+      .input("clientId", sql.Int, clientId)
+      .input("auctionId", sql.Int, auctionId)
+      .query(`
+        SELECT a.estado,
+          (SELECT COUNT(*) FROM Bids b
+           INNER JOIN Attendees at ON at.identificador=b.asistente
+           WHERE at.cliente=@clientId AND at.subasta=@auctionId) AS pujas
+        FROM Auctions a WHERE a.identificador=@auctionId
+      `);
+
+    if (participacion.recordset.length > 0) {
+      const estado = participacion.recordset[0].estado;
+      const pujas = Number(participacion.recordset[0].pujas || 0);
+      const sigueActiva = ["programada", "abierta", "en_curso"].includes(estado);
+      if (sigueActiva && pujas > 0) {
+        return res.status(409).json({
+          error: "Ya registraste pujas en esta subasta. Debes permanecer vinculado hasta que finalice.",
+          puedeCambiar: false,
+          pujas,
+        });
+      }
+    }
+
+    liberarSesionActiva(clientId, auctionId);
+    res.status(200).json({ mensaje: "Conexion de subasta liberada", puedeCambiar: true });
   } catch (err) {
     res.status(500).json({ error: err.message });
   }
@@ -1640,7 +1667,7 @@ app.get("/api/auctions/:auctionId/events", async (req, res) => {
   };
 
   await enviarEstado();
-  const intervalo = setInterval(enviarEstado, 5000);
+  const intervalo = setInterval(enviarEstado, 2000);
 
   req.on("close", () => {
     activo = false;
@@ -1656,10 +1683,12 @@ app.get("/api/auctions/:auctionId/events", async (req, res) => {
 app.get("/api/auctions/:auctionId/catalog", async (req, res) => {
   try {
     const pool = await poolPromise;
+    const clientId = Number(req.query.clientId || 0);
 
     const result = await pool
       .request()
       .input("auctionId", sql.Int, req.params.auctionId)
+      .input("clientId", sql.Int, clientId)
       .query(`
         SELECT
           ci.identificador AS itemId,
@@ -1679,7 +1708,10 @@ app.get("/api/auctions/:auctionId/catalog", async (req, res) => {
           ci.comision,
           ci.subastado,
           ci.vendido,
-          ISNULL(MAX(b.importe), ci.precioBase) AS mejorOferta
+          ISNULL(MAX(b.importe), ci.precioBase) AS mejorOferta,
+          (SELECT MAX(mb.importe) FROM Bids mb
+           INNER JOIN Attendees mat ON mat.identificador=mb.asistente
+           WHERE mb.item=ci.identificador AND mat.cliente=@clientId) AS miMejorOferta
         FROM Catalogs c
         INNER JOIN CatalogItems ci
           ON c.identificador = ci.catalogo

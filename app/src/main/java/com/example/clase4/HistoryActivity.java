@@ -30,9 +30,17 @@ public class HistoryActivity extends AppCompatActivity {
 
     private int userId;
     private String token;
+    private volatile boolean cargando;
+    private String ultimaRespuesta;
 
     private final ExecutorService executor = Executors.newSingleThreadExecutor();
     private final Handler mainHandler = new Handler(Looper.getMainLooper());
+    private final Runnable escuchaActividad = new Runnable() {
+        @Override public void run() {
+            cargarHistorial();
+            mainHandler.postDelayed(this, 4000);
+        }
+    };
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
@@ -51,12 +59,25 @@ public class HistoryActivity extends AppCompatActivity {
         userId = preferences.getInt("userId", 0);
         token = preferences.getString("token", "");
 
-        cargarHistorial();
+    }
+
+    @Override protected void onResume() {
+        super.onResume();
+        mainHandler.removeCallbacks(escuchaActividad);
+        mainHandler.post(escuchaActividad);
+    }
+
+    @Override protected void onPause() {
+        mainHandler.removeCallbacks(escuchaActividad);
+        super.onPause();
     }
 
     private void cargarHistorial() {
-        txtMensajeHistorial.setText("Cargando historial...");
-        contenedorHistorial.removeAllViews();
+        if (cargando) return;
+        cargando = true;
+        if (contenedorHistorial.getChildCount() == 0) {
+            txtMensajeHistorial.setText("Escuchando tus pujas en vivo...");
+        }
 
         executor.execute(() -> {
             HttpURLConnection connection = null;
@@ -82,6 +103,8 @@ public class HistoryActivity extends AppCompatActivity {
                 String respuesta = leerRespuesta(inputStream);
 
                 if (statusCode == 200) {
+                    if (respuesta.equals(ultimaRespuesta)) return;
+                    ultimaRespuesta = respuesta;
                     JSONArray historial = new JSONArray(respuesta);
                     mainHandler.post(() -> mostrarHistorial(historial));
                 } else {
@@ -93,6 +116,7 @@ public class HistoryActivity extends AppCompatActivity {
             } catch (Exception e) {
                 mainHandler.post(() -> txtMensajeHistorial.setText("No se pudo conectar con el servidor."));
             } finally {
+                cargando = false;
                 if (connection != null) {
                     connection.disconnect();
                 }

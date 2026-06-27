@@ -212,9 +212,9 @@ flow(doc, "3. Medios de pago", "Cliente + administrador", "Registrar, verificar 
 
 flow(doc, "4. Catálogo, puja y varios artículos", "Cliente comprador", "Ofertar por más de un lote y visualizar cada participación.",
      ["Cliente admitido, sin multas ni compras vencidas.", "Medio verificado compatible con la moneda.", "Categoría igual o superior a la subasta."],
-     ["Abrir una subasta disponible.", "Recorrer todos los lotes del catálogo; las imágenes deben conservar proporción.", "Pujar por un primer lote y esperar confirmación del servidor.", "Pujar por un segundo lote de la misma subasta.", "Abrir Historial y verificar dos fichas independientes.", "Tocar cada ficha para volver a su subasta."],
-     ["Cada lote muestra oferta propia, mejor oferta actual, cantidad de pujas y estado GANADO/LIDERANDO/SUPERADA.", "La puja genera un aviso y nunca reemplaza a otra participación."],
-     ["Probar menos de mejor oferta + 1% de base: rechazo.", "Probar más de mejor oferta + 20% de base en categorías no premium: rechazo.", "Intentar entrar a otra subasta sin salir: bloqueo informativo."])
+     ["Abrir una subasta disponible.", "Recorrer todos los lotes del catálogo; las imágenes deben conservar proporción.", "Pujar por un primer lote y esperar confirmación del servidor.", "Pujar por un segundo lote de la misma subasta.", "Comprobar que mejor oferta y liderazgo cambian solos en dos teléfonos.", "Abrir Historial y verificar dos fichas independientes actualizadas automáticamente.", "Tocar cada ficha para volver a su subasta."],
+     ["Cada lote muestra oferta propia, mejor oferta actual, cantidad de pujas y estado GANADO/LIDERANDO/SUPERADA.", "SSE actualiza la subasta cada 2 s y se reconecta si se corta la red.", "La puja genera un aviso y nunca reemplaza a otra participación."],
+     ["Probar menos de mejor oferta + 1% de base: rechazo.", "Probar más de mejor oferta + 20% de base en categorías no premium: rechazo.", "Entrar a otra subasta sin haber ofertado: debe permitir confirmar el cambio.", "Intentar cambiar luego de pujar: debe conservar el vínculo y explicar el motivo."])
 
 flow(doc, "5. Adjudicación y pago", "Ganador + administrador", "Cerrar el lote, generar la compra y elegir cómo abonarla.",
      ["Lote activo con al menos una oferta.", "Ganador con un medio verificado compatible."],
