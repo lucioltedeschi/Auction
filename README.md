@@ -46,35 +46,26 @@ GET /api/test
 
 ## Android
 
-Configurar la URL del backend en:
-
-```text
-app/src/main/java/com/example/clase4/ApiConfig.java
-```
-
-Para emulador:
-
-```java
-public static final String BASE_URL = "http://10.0.2.2:3000";
-```
-
-Para celular fisico en la misma red:
-
-```java
-public static final String BASE_URL = "http://IP_DE_LA_PC:3000";
-```
-
-Para entrega 3 con backend online:
-
-```java
-public static final String BASE_URL = "https://URL_PUBLICA";
-```
+La URL del backend se define al compilar. Sin parametro usa
+`http://10.0.2.2:3000`, apropiado para el emulador Android.
 
 Compilar APK debug:
 
 ```powershell
 $env:JAVA_HOME='C:\Program Files\Android\Android Studio\jbr'
 .\gradlew.bat :app:assembleDebug
+```
+
+Para un celular en la red local:
+
+```powershell
+.\gradlew.bat :app:assembleDebug -PAPI_BASE_URL=http://IP_DE_LA_PC:3000
+```
+
+Para Entrega 3 con backend online:
+
+```powershell
+.\gradlew.bat :app:assembleDebug -PAPI_BASE_URL=https://URL_PUBLICA
 ```
 
 APK:

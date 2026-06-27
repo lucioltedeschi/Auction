@@ -29,14 +29,13 @@ DB_SERVER=...
 DB_PORT=1433
 DB_NAME=auction
 DB_ENCRYPT=true
-DB_TRUST_CERT=true
+DB_TRUST_CERT=false
 COMPANY_CLIENT_ID=9000007
 ```
 
 ## Android
 
-- Actualizar `app/src/main/java/com/example/clase4/ApiConfig.java` con la URL publica del backend.
-- Recompilar APK.
+- Recompilar el APK con `-PAPI_BASE_URL=https://URL_PUBLICA`.
 - Probar login con:
   - Admin: `20000111` / `1234`
   - Cliente: `30123456` / `1234`

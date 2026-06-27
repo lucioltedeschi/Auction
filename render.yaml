@@ -1,0 +1,28 @@
+services:
+  - type: web
+    runtime: node
+    name: auct-io-api
+    plan: free
+    region: frankfurt
+    buildCommand: npm ci
+    startCommand: npm start
+    healthCheckPath: /api/health
+    envVars:
+      - key: NODE_ENV
+        value: production
+      - key: DB_USER
+        sync: false
+      - key: DB_PASSWORD
+        sync: false
+      - key: DB_SERVER
+        sync: false
+      - key: DB_PORT
+        value: 1433
+      - key: DB_NAME
+        sync: false
+      - key: DB_ENCRYPT
+        value: true
+      - key: DB_TRUST_CERT
+        value: false
+      - key: COMPANY_CLIENT_ID
+        value: 9000007

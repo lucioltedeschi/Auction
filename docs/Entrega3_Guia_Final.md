@@ -48,17 +48,11 @@ DB_SERVER=...
 DB_PORT=1433
 DB_NAME=auction
 DB_ENCRYPT=true
-DB_TRUST_CERT=true
+DB_TRUST_CERT=false
 COMPANY_CLIENT_ID=9000007
 ```
 
-Despues actualizar:
-
-```text
-app/src/main/java/com/example/clase4/ApiConfig.java
-```
-
-con la URL publica.
+La URL publica se inyecta al compilar el APK, sin modificar codigo fuente.
 
 ## APK
 
@@ -66,7 +60,7 @@ Compilar:
 
 ```powershell
 $env:JAVA_HOME='C:\Program Files\Android\Android Studio\jbr'
-.\gradlew.bat :app:assembleDebug
+.\gradlew.bat :app:assembleDebug -PAPI_BASE_URL=https://URL_PUBLICA
 ```
 
 Archivo a entregar/probar:

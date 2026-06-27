@@ -573,6 +573,10 @@ function base64ABuffer(valor) {
    TEST DE API
    ============================================================ */
 
+app.get("/api/health", (req, res) => {
+  res.status(200).json({ ok: true, servicio: "auct-io-api" });
+});
+
 app.get("/api/test", async (req, res) => {
   try {
     const pool = await poolPromise;
