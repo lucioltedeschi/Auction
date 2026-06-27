@@ -10,7 +10,7 @@ async function main() {
   const loginResult = await json(`${baseUrl}/api/auth/login`, {
     method: "POST",
     headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ documento: "51000001", clave: "1234" }),
+    body: JSON.stringify({ documento: "30123456", clave: "1234" }),
   });
   if (!loginResult.response.ok) throw new Error("No se pudo iniciar sesión para la prueba");
   const { token, usuario } = loginResult.body;
