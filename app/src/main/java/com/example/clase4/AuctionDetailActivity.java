@@ -826,8 +826,8 @@ public class AuctionDetailActivity extends AppCompatActivity {
         security.setLayoutParams(securityParams);
 
         Button btnPujar = new Button(this);
-        if (puedePujar && !vendido.equals("si")) {
-            btnPujar.setText(esItemActivo ? "PUJAR AHORA" : "PUJAR");
+        if (puedePujar && !vendido.equals("si") && esItemActivo) {
+            btnPujar.setText("PUJAR AHORA");
             btnPujar.setBackgroundResource(R.drawable.bg_button_gold);
             btnPujar.setTextColor(Color.parseColor("#071827"));
             btnPujar.setOnClickListener(v -> {
@@ -841,6 +841,14 @@ public class AuctionDetailActivity extends AppCompatActivity {
                 intent.putExtra("categoria", categoriaSubasta);
                 startActivity(intent);
             });
+        } else if (puedePujar && !vendido.equals("si")) {
+            btnPujar.setText("ESPERANDO TURNO");
+            btnPujar.setBackgroundResource(R.drawable.bg_button_outline);
+            btnPujar.setTextColor(Color.parseColor("#A8872F"));
+            btnPujar.setOnClickListener(v -> FeedbackDialog.info(this,
+                    "Lote todavía no habilitado",
+                    "Solo podés ofertar por el lote que se está rematando ahora. "
+                            + "Este lote quedará habilitado automáticamente cuando llegue su turno."));
         } else {
             btnPujar.setText(vendido.equals("si") ? "ADJUDICADO" : "SOLO VER");
             btnPujar.setBackgroundResource(R.drawable.bg_button_outline);

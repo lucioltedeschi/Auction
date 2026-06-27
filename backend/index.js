@@ -1930,14 +1930,6 @@ async function crearPuja(req, res) {
       });
     }
 
-    const sesion = registrarSesionActiva(clienteId, subastaId);
-    if (!sesion.ok) {
-      return res.status(sesion.status).json({
-        error: sesion.error,
-        activeAuctionId: sesion.activeAuctionId,
-      });
-    }
-
     const itemResult = await pool
       .request()
       .input("subastaId", sql.Int, subastaId)
@@ -1977,6 +1969,26 @@ async function crearPuja(req, res) {
     if (item.vendido === "si") {
       return res.status(409).json({
         error: "El ítem ya fue vendido",
+      });
+    }
+
+    const estadoVivo = await obtenerEstadoVivo(pool, subastaId);
+    const itemActivoId = Number(estadoVivo?.itemActual?.itemId || 0);
+    if (!itemActivoId || itemActivoId !== Number(itemId)) {
+      return res.status(409).json({
+        error: itemActivoId
+          ? `Solo puedes pujar por el lote activo (#${itemActivoId}). El lote #${itemId} todavía no está habilitado.`
+          : "La subasta no tiene un lote activo disponible para recibir pujas.",
+        itemActivoId: itemActivoId || null,
+        itemSolicitadoId: Number(itemId),
+      });
+    }
+
+    const sesion = registrarSesionActiva(clienteId, subastaId);
+    if (!sesion.ok) {
+      return res.status(sesion.status).json({
+        error: sesion.error,
+        activeAuctionId: sesion.activeAuctionId,
       });
     }
 

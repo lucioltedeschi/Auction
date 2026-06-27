@@ -15,7 +15,8 @@ La aplicación cubre el recorrido demostrable de registro, verificación, medios
 | Múltiples medios de pago verificados | Cumple | ABM del cliente, revisión administrativa y selección al pagar. |
 | Categoría de subasta no superior a la del cliente | Cumple | Validación en listado y nuevamente al crear la puja. |
 | Catálogo, precio base y fotografías | Cumple | Catálogo por lotes y galería; consignación exige al menos seis fotos. |
-| Puja ascendente y confirmada por servidor | Cumple | El servidor calcula mejor oferta, mínimo y máximo antes de insertar. |
+| Un solo lote habilitado por vez | Cumple | La interfaz muestra Esperando turno y el servidor rechaza cualquier puja sobre un lote no activo. |
+| Puja ascendente y confirmada por servidor | Cumple | El servidor valida lote activo, mejor oferta, mínimo y máximo antes de insertar. |
 | Incremento mínimo 1% y máximo 20% | Cumple | Aplicado sobre precio base respecto de la mejor oferta; excepción oro/platino. |
 | Una sola subasta conectada por cliente | Cumple | Sesión activa; permite cambiar si aún no ofertó y conserva el vínculo si ya pujó. |
 | Moneda única y compatibilidad para USD | Cumple | Solo acepta cuenta bancaria, tarjeta internacional o cheque compatible y verificado. |

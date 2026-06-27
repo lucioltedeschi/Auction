@@ -13,6 +13,7 @@
     "test:smoke:public": "node scripts/smoke-public.js",
     "test:admin-abm": "node scripts/test-admin-auctions.js",
     "test:live:concurrency": "node scripts/test-live-concurrency.js",
+    "test:bids:active-lot": "node scripts/test-only-active-lot.js",
     "build:android": "gradlew.bat :app:assembleDebug"
   },
   "repository": {
