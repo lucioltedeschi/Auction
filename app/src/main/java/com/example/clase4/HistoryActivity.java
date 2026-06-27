@@ -1,6 +1,7 @@
 package com.example.clase4;
 
 import android.content.SharedPreferences;
+import android.content.Intent;
 import android.graphics.Color;
 import android.os.Bundle;
 import android.os.Handler;
@@ -123,6 +124,8 @@ public class HistoryActivity extends AppCompatActivity {
         int pad = dp(18);
 
         int subastaId    = item.optInt("id", 0);
+        int itemId       = item.optInt("itemId", 0);
+        String articulo  = item.optString("descripcionCatalogo", "Lote #" + itemId);
         String fecha     = formatearFecha(item.optString("fecha", "-"));
         String hora      = formatearHora(item.optString("hora", "-"));
         String ubicacion = item.optString("ubicacion", "-");
@@ -131,6 +134,8 @@ public class HistoryActivity extends AppCompatActivity {
         String estado    = item.optString("estado", "-");
         int totalPujas   = item.optInt("totalPujas", 0);
         int itemsGanados = item.optInt("itemsGanados", 0);
+        double miOferta  = item.optDouble("miMejorOferta", 0);
+        double mejorActual = item.optDouble("mayorOfertaActual", 0);
 
         boolean cerrada   = "cerrada".equals(estado);
         boolean ganador   = itemsGanados > 0;
@@ -151,7 +156,7 @@ public class HistoryActivity extends AppCompatActivity {
         header.setGravity(android.view.Gravity.CENTER_VERTICAL);
 
         TextView titulo = new TextView(this);
-        titulo.setText("Subasta #" + subastaId);
+        titulo.setText(articulo);
         titulo.setTextSize(17);
         titulo.setTextColor(ganador ? Color.WHITE : Color.parseColor("#071827"));
         titulo.setTypeface(null, android.graphics.Typeface.BOLD);
@@ -160,17 +165,18 @@ public class HistoryActivity extends AppCompatActivity {
 
         TextView chip = new TextView(this);
         if (ganador) {
-            chip.setText("GANADOR");
+            chip.setText("GANADO");
             chip.setBackgroundResource(R.drawable.bg_button_gold);
             chip.setTextColor(Color.parseColor("#071827"));
         } else if (cerrada) {
-            chip.setText("FINALIZADA");
+            chip.setText(miOferta >= mejorActual ? "MEJOR OFERTA" : "SUPERADA");
             chip.setBackgroundResource(R.drawable.bg_success_chip);
             chip.setTextColor(Color.parseColor("#166534"));
         } else {
-            chip.setText("EN CURSO");
-            chip.setBackgroundResource(R.drawable.bg_danger_chip);
-            chip.setTextColor(Color.parseColor("#991B1B"));
+            chip.setText(miOferta >= mejorActual ? "LIDERANDO" : "SUPERADA");
+            chip.setBackgroundResource(miOferta >= mejorActual
+                    ? R.drawable.bg_success_chip : R.drawable.bg_danger_chip);
+            chip.setTextColor(Color.parseColor(miOferta >= mejorActual ? "#166534" : "#991B1B"));
         }
         chip.setTextSize(10);
         chip.setTypeface(null, android.graphics.Typeface.BOLD);
@@ -192,6 +198,7 @@ public class HistoryActivity extends AppCompatActivity {
 
         TextView info = new TextView(this);
         info.setText(
+                "Subasta #" + subastaId + " · Lote #" + itemId + "\n" +
                 "Fecha: " + fecha + "  -  " + hora + "\n" +
                 "Ubicacion: " + ubicacion + "\n" +
                 "Categoria: " + capitalize(categoria) + "  -  " + moneda
@@ -206,7 +213,9 @@ public class HistoryActivity extends AppCompatActivity {
         statsP.setMargins(0, dp(10), 0, 0);
 
         TextView stats = new TextView(this);
-        String statsText = totalPujas + " puja" + (totalPujas != 1 ? "s" : "") + " realizadas";
+        String statsText = totalPujas + " puja" + (totalPujas != 1 ? "s" : "")
+                + " · Tu mejor: $" + String.format("%.2f", miOferta)
+                + "\nMejor oferta del lote: $" + String.format("%.2f", mejorActual);
         if (itemsGanados > 0)
             statsText += "  -  " + itemsGanados + " lote" + (itemsGanados != 1 ? "s" : "") + " ganado" + (itemsGanados != 1 ? "s" : "");
         stats.setText(statsText);
@@ -219,6 +228,15 @@ public class HistoryActivity extends AppCompatActivity {
         card.addView(divider);
         card.addView(info);
         card.addView(stats);
+
+        card.setClickable(true);
+        card.setFocusable(true);
+        card.setForeground(getDrawable(android.R.drawable.list_selector_background));
+        card.setOnClickListener(v -> {
+            Intent intent = new Intent(HistoryActivity.this, AuctionDetailActivity.class);
+            intent.putExtra("auctionId", subastaId);
+            startActivity(intent);
+        });
 
         return card;
     }

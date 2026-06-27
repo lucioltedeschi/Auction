@@ -100,6 +100,9 @@ public class HomeActivity extends AppCompatActivity {
         findViewById(R.id.btnHistorial).setOnClickListener(v ->
                 startActivity(new Intent(HomeActivity.this, HistoryActivity.class)));
 
+        findViewById(R.id.btnEstadisticas).setOnClickListener(v ->
+                startActivity(new Intent(HomeActivity.this, StatisticsActivity.class)));
+
         findViewById(R.id.btnPerfil).setOnClickListener(v ->
                 startActivity(new Intent(HomeActivity.this, ProfileActivity.class)));
 

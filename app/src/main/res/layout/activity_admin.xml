@@ -242,11 +242,10 @@
                     android:orientation="vertical"
                     android:padding="12dp">
 
-                    <TextView
-                        android:layout_width="wrap_content"
-                        android:layout_height="wrap_content"
-                        android:text="👤"
-                        android:textSize="22sp" />
+                    <ImageView
+                        android:layout_width="34dp" android:layout_height="34dp"
+                        android:background="@drawable/bg_icon_circle" android:contentDescription=""
+                        android:padding="8dp" android:src="@drawable/ic_nav_profile" />
 
                     <TextView
                         android:layout_width="wrap_content"
@@ -270,11 +269,10 @@
                     android:orientation="vertical"
                     android:padding="12dp">
 
-                    <TextView
-                        android:layout_width="wrap_content"
-                        android:layout_height="wrap_content"
-                        android:text="💳"
-                        android:textSize="22sp" />
+                    <ImageView
+                        android:layout_width="34dp" android:layout_height="34dp"
+                        android:background="@drawable/bg_icon_circle" android:contentDescription=""
+                        android:padding="8dp" android:src="@drawable/ic_service_payment" />
 
                     <TextView
                         android:layout_width="wrap_content"
@@ -308,11 +306,10 @@
                     android:orientation="vertical"
                     android:padding="12dp">
 
-                    <TextView
-                        android:layout_width="wrap_content"
-                        android:layout_height="wrap_content"
-                        android:text="📦"
-                        android:textSize="22sp" />
+                    <ImageView
+                        android:layout_width="34dp" android:layout_height="34dp"
+                        android:background="@drawable/bg_icon_circle" android:contentDescription=""
+                        android:padding="8dp" android:src="@drawable/ic_service_consignment" />
 
                     <TextView
                         android:layout_width="wrap_content"
@@ -336,11 +333,10 @@
                     android:orientation="vertical"
                     android:padding="12dp">
 
-                    <TextView
-                        android:layout_width="wrap_content"
-                        android:layout_height="wrap_content"
-                        android:text="🔨"
-                        android:textSize="22sp" />
+                    <ImageView
+                        android:layout_width="34dp" android:layout_height="34dp"
+                        android:background="@drawable/bg_icon_circle" android:contentDescription=""
+                        android:padding="8dp" android:src="@drawable/ic_nav_auctions" />
 
                     <TextView
                         android:layout_width="wrap_content"
@@ -374,11 +370,10 @@
                     android:orientation="vertical"
                     android:padding="12dp">
 
-                    <TextView
-                        android:layout_width="wrap_content"
-                        android:layout_height="wrap_content"
-                        android:text="✅"
-                        android:textSize="22sp" />
+                    <ImageView
+                        android:layout_width="34dp" android:layout_height="34dp"
+                        android:background="@drawable/bg_icon_circle" android:contentDescription=""
+                        android:padding="8dp" android:src="@drawable/ic_status_success" />
 
                     <TextView
                         android:layout_width="wrap_content"
@@ -402,11 +397,10 @@
                     android:orientation="vertical"
                     android:padding="12dp">
 
-                    <TextView
-                        android:layout_width="wrap_content"
-                        android:layout_height="wrap_content"
-                        android:text="⚠️"
-                        android:textSize="22sp" />
+                    <ImageView
+                        android:layout_width="34dp" android:layout_height="34dp"
+                        android:background="@drawable/bg_icon_circle" android:contentDescription=""
+                        android:padding="8dp" android:src="@drawable/ic_service_fines" />
 
                     <TextView
                         android:layout_width="wrap_content"

@@ -108,7 +108,9 @@ public class AdminActivity extends AppCompatActivity {
         findViewById(R.id.btnAdminActualizarPendientes).setOnClickListener(v -> cargarPendientes());
         findViewById(R.id.cardAdminVerificarUsuario).setOnClickListener(v -> mostrarDialogVerificarUsuario());
         findViewById(R.id.cardAdminMediosPago).setOnClickListener(v -> mostrarDialogMediosPago());
-        findViewById(R.id.cardAdminConsignaciones).setOnClickListener(v -> mostrarDialogConsignaciones());
+        findViewById(R.id.cardAdminConsignaciones).setOnClickListener(v ->
+                FeedbackDialog.info(this, "Consignaciones pendientes",
+                        "Tocá una ficha de consignación para revisar fotos, procedencia, titular, precio sugerido y enviar la propuesta o el rechazo sin copiar identificadores."));
         findViewById(R.id.cardAdminCatalogo).setOnClickListener(v -> mostrarDialogCatalogo());
         findViewById(R.id.cardAdminCerrarItem).setOnClickListener(v -> mostrarDialogCerrarItem());
         findViewById(R.id.cardAdminMultas).setOnClickListener(v -> mostrarDialogMultas());
@@ -297,8 +299,11 @@ public class AdminActivity extends AppCompatActivity {
         String tipo = medio.optString("tipo", "-");
         String entidad = medio.optString("entidad", "-");
 
-        card.addView(crearTexto("Medio #" + id + " - " + formatearTipo(tipo), "#071827", 17, true));
-        card.addView(crearTexto(cliente + "\n" + entidad, "#475569", 13, false));
+        card.addView(crearTexto(formatearTipo(tipo), "#071827", 17, true));
+        card.addView(crearTexto(cliente + "\nEntidad: " + entidad
+                + "\nReferencia: " + medio.optString("numeroReferencia", "-")
+                + "  •  Moneda: " + medio.optString("moneda", "-"), "#475569", 13, false));
+        card.addView(crearTexto("TOCAR PARA APROBAR O RECHAZAR", "#A8872F", 11, true));
         card.setOnClickListener(v -> seleccionarMedioPendiente(medio));
 
         return card;
@@ -419,7 +424,15 @@ public class AdminActivity extends AppCompatActivity {
         }
 
         txtAdminMedioSeleccionado.setText(detalle);
-        mostrarInfo("Revisando medio de pago #" + id);
+        java.util.List<String> acciones = java.util.Arrays.asList(
+                "APROBAR MEDIO DE PAGO",
+                "RECHAZAR MEDIO DE PAGO"
+        );
+        FeedbackDialog.seleccionar(this, "Revisión de medio de pago", detalle,
+                acciones, opcion -> {
+                    if (opcion == 0) verificarMedioPago();
+                    else rechazarMedioPago();
+                });
     }
 
     private String formatearTipo(String tipo) {
@@ -759,7 +772,9 @@ public class AdminActivity extends AppCompatActivity {
     }
 
     private void mostrarDialogVerificarUsuario() {
-        LinearLayout container = buildDialogContainer();
+        FeedbackDialog.info(this, "Verificación de clientes",
+                "Elegí una ficha en Usuarios pendientes. Allí vas a ver identidad, contacto y documentación completa, y podrás aprobar o rechazar en un toque sin escribir identificadores.");
+        /*LinearLayout container = buildDialogContainer();
 
         // Cards de usuarios pendientes clicables
         if (contenedorUsuariosPendientes.getChildCount() > 0) {
@@ -822,11 +837,39 @@ public class AdminActivity extends AppCompatActivity {
                 verificarUsuario("no");
             });
         });
-        dialog.show();
+        dialog.show();*/
+    }
+
+    private JSONObject leerObjetoAutorizado(String path) throws Exception {
+        HttpURLConnection connection = null;
+        try {
+            connection = (HttpURLConnection) new URL(ApiConfig.BASE_URL + path).openConnection();
+            connection.setRequestMethod("GET");
+            connection.setRequestProperty("Accept", "application/json");
+            connection.setRequestProperty("Authorization", "Bearer " + token);
+            int status = connection.getResponseCode();
+            String respuesta = leerRespuesta(status < 300 ? connection.getInputStream() : connection.getErrorStream());
+            if (status >= 200 && status < 300) return new JSONObject(respuesta);
+            throw new IllegalStateException(new JSONObject(respuesta).optString("error", "HTTP " + status));
+        } finally { if (connection != null) connection.disconnect(); }
+    }
+
+    private void cargarOpcionesAccion(java.util.function.Consumer<JSONObject> callback) {
+        mostrarInfo("Cargando opciones disponibles...");
+        executor.execute(() -> {
+            try {
+                JSONObject opciones = leerObjetoAutorizado("/api/admin/action-options");
+                mainHandler.post(() -> callback.accept(opciones));
+            } catch (Exception e) {
+                mainHandler.post(() -> FeedbackDialog.error(this, e.getMessage()));
+            }
+        });
     }
 
     private void mostrarDialogMediosPago() {
-        LinearLayout container = buildDialogContainer();
+        FeedbackDialog.info(this, "Medios pendientes",
+                "Tocá directamente una ficha de Medio de pago pendiente. Se muestra toda la información declarada y las acciones Aprobar/Rechazar, sin ingresar IDs.");
+        /*LinearLayout container = buildDialogContainer();
         container.addView(buildLabel("ID DE MEDIO DE PAGO"));
         EditText edtId = buildInput("ID del medio de pago", android.text.InputType.TYPE_CLASS_NUMBER);
         container.addView(edtId);
@@ -858,7 +901,7 @@ public class AdminActivity extends AppCompatActivity {
                 rechazarMedioPago();
             });
         });
-        dialog.show();
+        dialog.show();*/
     }
 
     private void mostrarDialogConsignaciones() {
@@ -883,9 +926,11 @@ public class AdminActivity extends AppCompatActivity {
 
     private void mostrarDialogConsignacionesConLista(JSONArray pendientes) {
         LinearLayout container = buildDialogContainer();
+        String current = edtAdminProductoId.getText().toString().trim();
+        boolean haySeleccion = !current.isEmpty();
 
         // ── Pending list ─────────────────────────────────────────────────
-        if (pendientes.length() > 0) {
+        if (!haySeleccion && pendientes.length() > 0) {
             container.addView(buildLabel("CONSIGNACIONES PENDIENTES"));
             for (int i = 0; i < pendientes.length(); i++) {
                 try {
@@ -929,7 +974,7 @@ public class AdminActivity extends AppCompatActivity {
                     container.addView(btnItem);
                 } catch (Exception ignored) {}
             }
-        } else {
+        } else if (!haySeleccion) {
             TextView none = new TextView(this);
             none.setText("No hay consignaciones pendientes.");
             none.setTextColor(android.graphics.Color.parseColor("#64748B"));
@@ -937,11 +982,9 @@ public class AdminActivity extends AppCompatActivity {
             container.addView(none);
         }
 
-        container.addView(buildLabel("ID DE PRODUCTO"));
-        EditText edtId = buildInput("ID del producto", android.text.InputType.TYPE_CLASS_NUMBER);
-        // Pre-fill if edtAdminProductoId already has a value
-        String current = edtAdminProductoId.getText().toString().trim();
-        if (!current.isEmpty()) edtId.setText(current);
+        EditText edtId = buildInput("Producto seleccionado", android.text.InputType.TYPE_CLASS_NUMBER);
+        edtId.setText(current);
+        edtId.setVisibility(View.GONE);
         container.addView(edtId);
         container.addView(buildLabel("PRECIO BASE PROPUESTO"));
         EditText edtPrecio = buildInput("Precio base definido por la empresa", android.text.InputType.TYPE_NUMBER_FLAG_DECIMAL | android.text.InputType.TYPE_CLASS_NUMBER);
@@ -994,6 +1037,46 @@ public class AdminActivity extends AppCompatActivity {
 
 
     private void mostrarDialogCatalogo() {
+        cargarOpcionesAccion(data -> {
+            JSONArray productos = data.optJSONArray("productos");
+            JSONArray subastas = data.optJSONArray("subastas");
+            if (productos == null || productos.length() == 0) {
+                FeedbackDialog.info(this, "Sin productos listos", "Primero el cliente debe aceptar una propuesta de consignación.");
+                return;
+            }
+            if (subastas == null || subastas.length() == 0) {
+                FeedbackDialog.info(this, "Sin subastas disponibles", "Creá o habilitá una subasta desde Gestionar subastas.");
+                return;
+            }
+            java.util.List<String> nombres = new java.util.ArrayList<>();
+            for (int i=0; i<productos.length(); i++) {
+                JSONObject p = productos.optJSONObject(i);
+                nombres.add(p.optString("descripcionCatalogo") + "\nConsignante: " + p.optString("consignante")
+                        + " · Base: $" + p.optDouble("precioBase") + " · Comisión: $" + p.optDouble("comision"));
+            }
+            FeedbackDialog.seleccionar(this, "Elegí el producto", "Solo aparecen consignaciones aceptadas por su titular.", nombres, pi -> {
+                JSONObject producto = productos.optJSONObject(pi);
+                java.util.List<String> destinos = new java.util.ArrayList<>();
+                for (int i=0; i<subastas.length(); i++) {
+                    JSONObject a = subastas.optJSONObject(i);
+                    destinos.add(a.optString("ubicacion") + " · " + a.optString("categoria").toUpperCase()
+                            + " · " + a.optString("moneda").toUpperCase() + "\n" + a.optString("estado"));
+                }
+                FeedbackDialog.seleccionar(this, "Elegí la subasta", producto.optString("descripcionCatalogo"), destinos, ai -> {
+                    JSONObject subasta = subastas.optJSONObject(ai);
+                    edtAdminProductoId.setText(String.valueOf(producto.optInt("id")));
+                    edtAdminSubastaId.setText(String.valueOf(subasta.optInt("id")));
+                    edtAdminPrecioBase.setText(String.valueOf(producto.optDouble("precioBase")));
+                    edtAdminComision.setText(String.valueOf(producto.optDouble("comision")));
+                    FeedbackDialog.confirmar(this, "Confirmar incorporación",
+                            producto.optString("descripcionCatalogo") + " se incorporará a " + subasta.optString("ubicacion")
+                                    + " con los valores ya aceptados por el consignante.", this::asignarProducto);
+                });
+            });
+        });
+    }
+
+    private void mostrarDialogCatalogoLegacy() {
         LinearLayout container = buildDialogContainer();
         container.addView(buildLabel("ID DE SUBASTA"));
         EditText edtSubasta = buildInput("ID de subasta", android.text.InputType.TYPE_CLASS_NUMBER);
@@ -1079,6 +1162,29 @@ public class AdminActivity extends AppCompatActivity {
     }
 
     private void mostrarDialogCerrarItem() {
+        cargarOpcionesAccion(data -> {
+            JSONArray lotes = data.optJSONArray("lotes");
+            if (lotes == null || lotes.length() == 0) {
+                FeedbackDialog.info(this, "Sin lotes para cerrar", "No hay lotes abiertos en subastas activas.");
+                return;
+            }
+            java.util.List<String> opciones = new java.util.ArrayList<>();
+            for (int i=0; i<lotes.length(); i++) {
+                JSONObject l = lotes.optJSONObject(i);
+                opciones.add(l.optString("descripcionCatalogo") + "\n" + l.optString("ubicacion")
+                        + " · " + l.optInt("pujas") + " pujas · Mejor: " + l.optString("moneda") + " " + l.optDouble("mejorOferta"));
+            }
+            FeedbackDialog.seleccionar(this, "Cerrar lote", "Elegí un lote abierto. La venta se genera con la mejor oferta confirmada.", opciones, i -> {
+                JSONObject lote = lotes.optJSONObject(i);
+                edtAdminSubastaId.setText(String.valueOf(lote.optInt("subastaId")));
+                edtAdminItemId.setText(String.valueOf(lote.optInt("id")));
+                FeedbackDialog.confirmar(this, "Adjudicar lote", lote.optString("descripcionCatalogo")
+                        + "\nMejor oferta: " + lote.optString("moneda") + " " + lote.optDouble("mejorOferta"), this::cerrarItem);
+            });
+        });
+    }
+
+    private void mostrarDialogCerrarItemLegacy() {
         LinearLayout container = buildDialogContainer();
         container.addView(buildLabel("ID DE SUBASTA"));
         EditText edtSubasta = buildInput("ID de subasta", android.text.InputType.TYPE_CLASS_NUMBER);
@@ -1114,6 +1220,31 @@ public class AdminActivity extends AppCompatActivity {
     }
 
     private void mostrarDialogMultas() {
+        cargarOpcionesAccion(data -> {
+            JSONArray impagos = data.optJSONArray("impagos");
+            if (impagos == null || impagos.length() == 0) {
+                FeedbackDialog.info(this, "Sin incumplimientos vencidos", "No hay compras pendientes que hayan superado las 72 horas reglamentarias.");
+                return;
+            }
+            java.util.List<String> opciones = new java.util.ArrayList<>();
+            for (int i=0; i<impagos.length(); i++) {
+                JSONObject p = impagos.optJSONObject(i);
+                opciones.add(p.optString("cliente") + " · " + p.optString("descripcionCatalogo")
+                        + "\nTotal impago: " + p.optString("moneda") + " " + p.optDouble("total")
+                        + " · Multa 10%: " + p.optDouble("multaSugerida"));
+            }
+            FeedbackDialog.seleccionar(this, "Aplicar multa reglamentaria", "Solo se muestran impagos vencidos y sin una multa pendiente.", opciones, i -> {
+                JSONObject p = impagos.optJSONObject(i);
+                edtAdminClienteMulta.setText(String.valueOf(p.optInt("clienteId")));
+                edtAdminSubastaId.setText(String.valueOf(p.optInt("subastaId")));
+                edtAdminMontoMulta.setText(String.valueOf(p.optDouble("multaSugerida")));
+                FeedbackDialog.confirmar(this, "Confirmar multa del 10%", p.optString("cliente") + "\n"
+                        + p.optString("descripcionCatalogo") + "\nMonto: " + p.optString("moneda") + " " + p.optDouble("multaSugerida"), this::crearMulta);
+            });
+        });
+    }
+
+    private void mostrarDialogMultasLegacy() {
         LinearLayout container = buildDialogContainer();
         container.addView(buildLabel("ID DE CLIENTE"));
         EditText edtCliente = buildInput("ID del cliente", android.text.InputType.TYPE_CLASS_NUMBER);

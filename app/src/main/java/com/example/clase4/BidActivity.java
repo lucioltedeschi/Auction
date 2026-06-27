@@ -234,14 +234,11 @@ public class BidActivity extends AppCompatActivity {
     }
 
     private void mostrarModalExito(String mensaje) {
-        View view = construirVistaModal("OK", "#16A34A", "Puja recibida", mensaje + "\n\nVolve al catalogo para seguir el estado en vivo del lote.");
-        new AlertDialog.Builder(this)
-                .setView(view)
-                .setCancelable(false)
-                .setPositiveButton("VOLVER AL CATALOGO", (d, w) -> {
-                    finish();
-                })
-                .show();
+        FeedbackDialog.accionExitosa(this,
+                "Puja recibida",
+                mensaje + "\n\nVolvé al catálogo para seguir en vivo este lote y todos los demás artículos por los que ofertaste.",
+                "VOLVER AL CATÁLOGO",
+                this::finish);
     }
 
     private void mostrarModalError(String error) {
@@ -257,12 +254,7 @@ public class BidActivity extends AppCompatActivity {
             titulo = "No se pudo registrar";
         }
 
-        View view = construirVistaModal("!", "#DC2626", titulo, error);
-        new AlertDialog.Builder(this)
-                .setView(view)
-                .setCancelable(true)
-                .setPositiveButton("Entendido", null)
-                .show();
+        FeedbackDialog.error(this, titulo + "\n\n" + error);
     }
 
     private View construirVistaModal(String icono, String iconColor, String titulo, String mensaje) {

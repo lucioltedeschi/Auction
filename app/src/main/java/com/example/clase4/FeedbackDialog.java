@@ -5,10 +5,17 @@ import android.content.Context;
 import android.graphics.Color;
 import android.graphics.drawable.GradientDrawable;
 import android.view.Gravity;
+import android.view.View;
+import android.view.ViewGroup;
 import android.view.Window;
+import android.view.WindowManager;
+import android.widget.Button;
 import android.widget.ImageView;
 import android.widget.LinearLayout;
 import android.widget.TextView;
+
+import java.util.List;
+import java.util.function.IntConsumer;
 
 public class FeedbackDialog {
     public static void ok(Context context, String mensaje) {
@@ -23,43 +30,88 @@ public class FeedbackDialog {
         mostrar(context, titulo, mensaje, R.drawable.ic_status_info, "#A8872F");
     }
 
+    public static void accionExitosa(Context context, String titulo, String mensaje,
+                                     String textoAccion, Runnable accion) {
+        LinearLayout root = crearContenido(context, titulo, mensaje, R.drawable.ic_status_success, "#166534");
+        AlertDialog dialog = crearDialogo(context, root);
+        Button button = crearBoton(context, textoAccion, R.drawable.bg_button_gold, "#071827");
+        LinearLayout.LayoutParams params = new LinearLayout.LayoutParams(
+                LinearLayout.LayoutParams.MATCH_PARENT, dp(context, 50));
+        params.setMargins(0, dp(context, 18), 0, 0);
+        button.setLayoutParams(params);
+        button.setOnClickListener(v -> {
+            dialog.dismiss();
+            accion.run();
+        });
+        root.addView(button);
+        dialog.setCancelable(false);
+        mostrarDialogo(dialog);
+    }
+
     public static void confirmar(Context context, String titulo, String mensaje, Runnable alConfirmar) {
         LinearLayout root = crearContenido(context, titulo, mensaje, R.drawable.ic_status_info, "#A8872F");
-        AlertDialog dialog = new AlertDialog.Builder(context)
-                .setView(root)
-                .setNegativeButton("Cancelar", null)
-                .setPositiveButton("Confirmar", (ignored, which) -> alConfirmar.run())
-                .create();
-
-        dialog.setOnShowListener(ignored -> {
-            dialog.getButton(AlertDialog.BUTTON_POSITIVE).setTextColor(Color.parseColor("#A8872F"));
-            dialog.getButton(AlertDialog.BUTTON_POSITIVE).setTypeface(null, android.graphics.Typeface.BOLD);
-            dialog.getButton(AlertDialog.BUTTON_NEGATIVE).setTextColor(Color.parseColor("#64748B"));
+        AlertDialog dialog = crearDialogo(context, root);
+        LinearLayout actions = crearFilaAcciones(context);
+        Button cancel = crearBoton(context, "CANCELAR", R.drawable.bg_button_outline, "#64748B");
+        Button confirm = crearBoton(context, "CONFIRMAR", R.drawable.bg_button_gold, "#071827");
+        cancel.setOnClickListener(v -> dialog.dismiss());
+        confirm.setOnClickListener(v -> {
+            dialog.dismiss();
+            alConfirmar.run();
         });
-        dialog.show();
-        estilizarVentana(dialog);
+        actions.addView(cancel);
+        actions.addView(confirm);
+        root.addView(actions);
+        mostrarDialogo(dialog);
+    }
+
+    public static void seleccionar(Context context, String titulo, String mensaje,
+                                   List<String> opciones, IntConsumer alSeleccionar) {
+        LinearLayout root = crearContenido(context, titulo, mensaje, R.drawable.ic_status_info, "#A8872F");
+        AlertDialog dialog = crearDialogo(context, root);
+        for (int i = 0; i < opciones.size(); i++) {
+            final int index = i;
+            Button option = crearBoton(context, opciones.get(i), R.drawable.bg_button_outline, "#071827");
+            LinearLayout.LayoutParams params = new LinearLayout.LayoutParams(
+                    LinearLayout.LayoutParams.MATCH_PARENT, dp(context, 52));
+            params.setMargins(0, dp(context, 8), 0, 0);
+            option.setLayoutParams(params);
+            option.setGravity(Gravity.START | Gravity.CENTER_VERTICAL);
+            option.setPadding(dp(context, 16), 0, dp(context, 16), 0);
+            option.setOnClickListener(v -> {
+                dialog.dismiss();
+                alSeleccionar.accept(index);
+            });
+            root.addView(option);
+        }
+        Button cancel = crearBoton(context, "CANCELAR", R.drawable.bg_button_outline, "#64748B");
+        LinearLayout.LayoutParams cancelParams = new LinearLayout.LayoutParams(
+                LinearLayout.LayoutParams.MATCH_PARENT, dp(context, 48));
+        cancelParams.setMargins(0, dp(context, 12), 0, 0);
+        cancel.setLayoutParams(cancelParams);
+        cancel.setOnClickListener(v -> dialog.dismiss());
+        root.addView(cancel);
+        mostrarDialogo(dialog);
     }
 
     private static void mostrar(Context context, String titulo, String mensaje, int iconRes, String badgeColor) {
         LinearLayout root = crearContenido(context, titulo, mensaje, iconRes, badgeColor);
 
-        AlertDialog dialog = new AlertDialog.Builder(context)
-                .setView(root)
-                .setPositiveButton("Entendido", null)
-                .create();
-
-        dialog.setOnShowListener(ignored -> {
-            dialog.getButton(AlertDialog.BUTTON_POSITIVE).setTextColor(Color.parseColor("#A8872F"));
-            dialog.getButton(AlertDialog.BUTTON_POSITIVE).setTypeface(null, android.graphics.Typeface.BOLD);
-        });
-        dialog.show();
-        estilizarVentana(dialog);
+        AlertDialog dialog = crearDialogo(context, root);
+        Button understood = crearBoton(context, "ENTENDIDO", R.drawable.bg_button_gold, "#071827");
+        LinearLayout.LayoutParams params = new LinearLayout.LayoutParams(
+                LinearLayout.LayoutParams.MATCH_PARENT, dp(context, 50));
+        params.setMargins(0, dp(context, 18), 0, 0);
+        understood.setLayoutParams(params);
+        understood.setOnClickListener(v -> dialog.dismiss());
+        root.addView(understood);
+        mostrarDialogo(dialog);
     }
 
     private static LinearLayout crearContenido(Context context, String titulo, String mensaje, int iconRes, String badgeColor) {
         LinearLayout root = new LinearLayout(context);
         root.setOrientation(LinearLayout.VERTICAL);
-        root.setPadding(dp(context, 24), dp(context, 26), dp(context, 24), dp(context, 16));
+        root.setPadding(dp(context, 24), dp(context, 26), dp(context, 24), dp(context, 22));
         root.setGravity(Gravity.CENTER_HORIZONTAL);
         root.setBackgroundResource(R.drawable.bg_dialog_premium);
 
@@ -105,6 +157,52 @@ public class FeedbackDialog {
         root.addView(titleView);
         root.addView(messageView);
         return root;
+    }
+
+    private static AlertDialog crearDialogo(Context context, View root) {
+        return new AlertDialog.Builder(context)
+                .setView(root)
+                .setCancelable(true)
+                .create();
+    }
+
+    private static LinearLayout crearFilaAcciones(Context context) {
+        LinearLayout row = new LinearLayout(context);
+        row.setOrientation(LinearLayout.HORIZONTAL);
+        LinearLayout.LayoutParams params = new LinearLayout.LayoutParams(
+                LinearLayout.LayoutParams.MATCH_PARENT, dp(context, 50));
+        params.setMargins(0, dp(context, 18), 0, 0);
+        row.setLayoutParams(params);
+        return row;
+    }
+
+    private static Button crearBoton(Context context, String text, int background, String textColor) {
+        Button button = new Button(context);
+        button.setText(text);
+        button.setTextSize(12);
+        button.setTextColor(Color.parseColor(textColor));
+        button.setTypeface(null, android.graphics.Typeface.BOLD);
+        button.setBackgroundResource(background);
+        button.setAllCaps(false);
+        LinearLayout.LayoutParams params = new LinearLayout.LayoutParams(0,
+                ViewGroup.LayoutParams.MATCH_PARENT, 1f);
+        params.setMargins(dp(context, 4), 0, dp(context, 4), 0);
+        button.setLayoutParams(params);
+        return button;
+    }
+
+    private static void mostrarDialogo(AlertDialog dialog) {
+        dialog.show();
+        estilizarVentana(dialog);
+        Window window = dialog.getWindow();
+        if (window != null) {
+            int width = (int) (dialog.getContext().getResources().getDisplayMetrics().widthPixels * 0.90f);
+            window.setLayout(width, WindowManager.LayoutParams.WRAP_CONTENT);
+            window.addFlags(WindowManager.LayoutParams.FLAG_DIM_BEHIND);
+            WindowManager.LayoutParams attributes = window.getAttributes();
+            attributes.dimAmount = 0.62f;
+            window.setAttributes(attributes);
+        }
     }
 
     private static void estilizarVentana(AlertDialog dialog) {

@@ -357,9 +357,43 @@
                 android:orientation="horizontal">
 
                 <LinearLayout
+                    android:id="@+id/btnEstadisticas"
+                    android:layout_width="0dp"
+                    android:layout_height="104dp"
+                    android:layout_marginRight="5dp"
+                    android:layout_weight="1"
+                    android:background="@drawable/bg_card_premium"
+                    android:contentDescription="Ver estadísticas personales"
+                    android:foreground="?attr/selectableItemBackground"
+                    android:gravity="center"
+                    android:orientation="vertical"
+                    android:padding="8dp">
+
+                    <ImageView
+                        android:layout_width="40dp"
+                        android:layout_height="40dp"
+                        android:background="@drawable/bg_icon_circle"
+                        android:contentDescription=""
+                        android:padding="9dp"
+                        android:src="@drawable/ic_service_statistics" />
+
+                    <TextView
+                        android:layout_width="wrap_content"
+                        android:layout_height="wrap_content"
+                        android:layout_marginTop="5dp"
+                        android:gravity="center"
+                        android:text="ESTADÍSTICAS"
+                        android:textColor="#071827"
+                        android:textSize="10sp"
+                        android:textStyle="bold" />
+
+                </LinearLayout>
+
+                <LinearLayout
                     android:id="@+id/btnNotificaciones"
                     android:layout_width="0dp"
                     android:layout_height="104dp"
+                    android:layout_marginLeft="5dp"
                     android:layout_marginRight="5dp"
                     android:layout_weight="1"
                     android:background="@drawable/bg_card_premium"
@@ -394,7 +428,7 @@
                     android:layout_width="0dp"
                     android:layout_height="104dp"
                     android:layout_marginLeft="5dp"
-                    android:layout_weight="2"
+                    android:layout_weight="1"
                     android:background="@drawable/bg_card_dark_premium"
                     android:contentDescription="Abrir panel interno"
                     android:foreground="?attr/selectableItemBackground"
@@ -479,158 +513,6 @@
                 android:layout_height="wrap_content"
                 android:layout_marginTop="14dp"
                 android:orientation="vertical" />
-
-            <!-- COLLECTIONS -->
-            <TextView
-                android:layout_width="match_parent"
-                android:layout_height="wrap_content"
-                android:layout_marginTop="28dp"
-                android:text="Colecciones destacadas"
-                android:textColor="#071827"
-                android:textSize="22sp"
-                android:textStyle="bold" />
-
-            <LinearLayout
-                android:layout_width="match_parent"
-                android:layout_height="wrap_content"
-                android:layout_marginTop="12dp"
-                android:orientation="horizontal">
-
-                <LinearLayout
-                    android:layout_width="0dp"
-                    android:layout_height="124dp"
-                    android:layout_marginRight="7dp"
-                    android:layout_weight="1"
-                    android:background="@drawable/bg_collection_card"
-                    android:elevation="1dp"
-                    android:orientation="vertical"
-                    android:padding="16dp">
-
-                    <TextView
-                        android:layout_width="match_parent"
-                        android:layout_height="wrap_content"
-                        android:letterSpacing="0.06"
-                        android:text="MOTORES CLASICOS"
-                        android:textColor="#071827"
-                        android:textSize="13sp"
-                        android:textStyle="bold" />
-
-                    <View
-                        android:layout_width="46dp"
-                        android:layout_height="2dp"
-                        android:layout_marginTop="10dp"
-                        android:background="@drawable/bg_gold_line" />
-
-                    <TextView
-                        android:layout_width="match_parent"
-                        android:layout_height="wrap_content"
-                        android:layout_marginTop="20dp"
-                        android:text="12 lotes activos"
-                        android:textColor="#6B7280"
-                        android:textSize="12sp" />
-
-                    <TextView
-                        android:layout_width="match_parent"
-                        android:layout_height="wrap_content"
-                        android:layout_marginTop="6dp"
-                        android:text="Vehiculos seleccionados"
-                        android:textColor="#A8872F"
-                        android:textSize="11sp"
-                        android:textStyle="bold" />
-
-                </LinearLayout>
-
-                <LinearLayout
-                    android:layout_width="0dp"
-                    android:layout_height="124dp"
-                    android:layout_marginLeft="7dp"
-                    android:layout_weight="1"
-                    android:background="@drawable/bg_collection_card"
-                    android:elevation="1dp"
-                    android:orientation="vertical"
-                    android:padding="16dp">
-
-                    <TextView
-                        android:layout_width="match_parent"
-                        android:layout_height="wrap_content"
-                        android:letterSpacing="0.06"
-                        android:text="ALTA JOYERIA"
-                        android:textColor="#071827"
-                        android:textSize="13sp"
-                        android:textStyle="bold" />
-
-                    <View
-                        android:layout_width="46dp"
-                        android:layout_height="2dp"
-                        android:layout_marginTop="10dp"
-                        android:background="@drawable/bg_gold_line" />
-
-                    <TextView
-                        android:layout_width="match_parent"
-                        android:layout_height="wrap_content"
-                        android:layout_marginTop="20dp"
-                        android:text="Proximamente"
-                        android:textColor="#6B7280"
-                        android:textSize="12sp" />
-
-                    <TextView
-                        android:layout_width="match_parent"
-                        android:layout_height="wrap_content"
-                        android:layout_marginTop="6dp"
-                        android:text="Coleccion privada"
-                        android:textColor="#A8872F"
-                        android:textSize="11sp"
-                        android:textStyle="bold" />
-
-                </LinearLayout>
-
-            </LinearLayout>
-
-            <!-- CALENDAR -->
-            <TextView
-                android:layout_width="match_parent"
-                android:layout_height="wrap_content"
-                android:layout_marginTop="28dp"
-                android:text="Calendario de subastas"
-                android:textColor="#071827"
-                android:textSize="22sp"
-                android:textStyle="bold" />
-
-            <LinearLayout
-                android:layout_width="match_parent"
-                android:layout_height="wrap_content"
-                android:layout_marginTop="12dp"
-                android:background="@drawable/bg_collection_card"
-                android:elevation="1dp"
-                android:orientation="vertical"
-                android:padding="18dp">
-
-                <TextView
-                    android:layout_width="match_parent"
-                    android:layout_height="wrap_content"
-                    android:text="12 MAY - 18:00"
-                    android:textColor="#A8872F"
-                    android:textSize="12sp"
-                    android:textStyle="bold" />
-
-                <TextView
-                    android:layout_width="match_parent"
-                    android:layout_height="wrap_content"
-                    android:layout_marginTop="9dp"
-                    android:text="Cava vintage: seleccion Bordeaux"
-                    android:textColor="#071827"
-                    android:textSize="17sp"
-                    android:textStyle="bold" />
-
-                <TextView
-                    android:layout_width="match_parent"
-                    android:layout_height="wrap_content"
-                    android:layout_marginTop="5dp"
-                    android:text="48 lotes - desde $400"
-                    android:textColor="#6B7280"
-                    android:textSize="13sp" />
-
-            </LinearLayout>
 
         </LinearLayout>
 

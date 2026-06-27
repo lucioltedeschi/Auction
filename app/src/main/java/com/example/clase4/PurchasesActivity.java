@@ -21,6 +21,10 @@ import java.io.InputStream;
 import java.io.InputStreamReader;
 import java.net.HttpURLConnection;
 import java.net.URL;
+import java.io.OutputStream;
+import java.nio.charset.StandardCharsets;
+import java.util.ArrayList;
+import java.util.List;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 
@@ -128,6 +132,7 @@ public class PurchasesActivity extends AppCompatActivity {
         double envio = compra.optDouble("costoEnvio", 0);
         double total = importe + comision + envio;
         String fechaLimite = formatearFecha(compra.optString("fechaLimitePago", "-"));
+        String moneda = compra.optString("moneda", "pesos");
 
         LinearLayout card = new LinearLayout(this);
         card.setOrientation(LinearLayout.VERTICAL);
@@ -217,15 +222,10 @@ public class PurchasesActivity extends AppCompatActivity {
             btnPagar.setTextColor(Color.parseColor("#64748B"));
             btnPagar.setEnabled(false);
         } else {
-            btnPagar.setText("REGISTRAR PAGO");
+            btnPagar.setText("ELEGIR MEDIO Y PAGAR");
             btnPagar.setBackgroundResource(R.drawable.bg_button_gold);
             btnPagar.setTextColor(Color.parseColor("#071827"));
-            btnPagar.setOnClickListener(v -> FeedbackDialog.confirmar(
-                    this,
-                    "Confirmar pago",
-                    "Se registrará el pago de la compra #" + ventaId + " por un total de $" + String.format("%.2f", total) + ".",
-                    () -> pagarCompra(ventaId)
-            ));
+            btnPagar.setOnClickListener(v -> cargarMediosParaPago(ventaId, total, moneda));
         }
         btnPagar.setTextSize(12);
         btnPagar.setTypeface(null, android.graphics.Typeface.BOLD);
@@ -239,7 +239,56 @@ public class PurchasesActivity extends AppCompatActivity {
         return card;
     }
 
-    private void pagarCompra(int ventaId) {
+    private void cargarMediosParaPago(int ventaId, double total, String moneda) {
+        executor.execute(() -> {
+            HttpURLConnection connection = null;
+            try {
+                URL url = new URL(ApiConfig.BASE_URL + "/api/clients/" + userId + "/payment-methods");
+                connection = (HttpURLConnection) url.openConnection();
+                connection.setRequestMethod("GET");
+                connection.setRequestProperty("Accept", "application/json");
+                connection.setRequestProperty("Authorization", "Bearer " + token);
+                int code = connection.getResponseCode();
+                if (code != 200) throw new IllegalStateException("No se pudieron consultar los medios de pago.");
+                JSONArray methods = new JSONArray(leerRespuesta(connection.getInputStream()));
+                List<Integer> ids = new ArrayList<>();
+                List<String> options = new ArrayList<>();
+                for (int i = 0; i < methods.length(); i++) {
+                    JSONObject method = methods.getJSONObject(i);
+                    String type = method.optString("tipo");
+                    String methodCurrency = method.optString("moneda", "pesos");
+                    boolean verified = "si".equals(method.optString("verificado"));
+                    boolean compatible = moneda.equals(methodCurrency) &&
+                            ("pesos".equals(moneda) || "cuenta_bancaria".equals(type)
+                                    || ("tarjeta_credito".equals(type) && "si".equals(method.optString("esExtranjera")))
+                                    || "cheque_certificado".equals(type));
+                    if (!verified || !compatible) continue;
+                    ids.add(method.optInt("id"));
+                    String reference = method.optString("numeroReferencia", "");
+                    String last = reference.length() > 6 ? "…" + reference.substring(reference.length() - 6) : reference;
+                    options.add(method.optString("entidad", tipoLegible(type)) + " · " + tipoLegible(type)
+                            + "\n" + last + " · " + methodCurrency.toUpperCase());
+                }
+                mainHandler.post(() -> {
+                    if (ids.isEmpty()) {
+                        FeedbackDialog.error(this, "No tenés medios verificados compatibles con " + moneda + ".");
+                        return;
+                    }
+                    FeedbackDialog.seleccionar(this, "Elegí cómo pagar",
+                            "Compra #" + ventaId + " · Total " + moneda + " " + String.format("%.2f", total),
+                            options, index -> FeedbackDialog.confirmar(this, "Confirmar pago",
+                                    options.get(index) + "\n\nSe acreditará " + moneda + " " + String.format("%.2f", total) + ".",
+                                    () -> pagarCompra(ventaId, ids.get(index))));
+                });
+            } catch (Exception error) {
+                mainHandler.post(() -> FeedbackDialog.error(this, error.getMessage()));
+            } finally {
+                if (connection != null) connection.disconnect();
+            }
+        });
+    }
+
+    private void pagarCompra(int ventaId, int medioPagoId) {
         executor.execute(() -> {
             HttpURLConnection connection = null;
             try {
@@ -248,7 +297,14 @@ public class PurchasesActivity extends AppCompatActivity {
                 connection.setRequestMethod("POST");
                 connection.setRequestProperty("Accept", "application/json");
                 connection.setRequestProperty("Authorization", "Bearer " + token);
+                connection.setRequestProperty("Content-Type", "application/json; charset=UTF-8");
                 connection.setDoOutput(true);
+
+                JSONObject body = new JSONObject();
+                body.put("medioPagoId", medioPagoId);
+                try (OutputStream output = connection.getOutputStream()) {
+                    output.write(body.toString().getBytes(StandardCharsets.UTF_8));
+                }
 
                 int statusCode = connection.getResponseCode();
                 InputStream inputStream = statusCode >= 200 && statusCode < 300
@@ -278,6 +334,13 @@ public class PurchasesActivity extends AppCompatActivity {
                 if (connection != null) connection.disconnect();
             }
         });
+    }
+
+    private String tipoLegible(String type) {
+        if ("cuenta_bancaria".equals(type)) return "Cuenta bancaria";
+        if ("tarjeta_credito".equals(type)) return "Tarjeta de crédito";
+        if ("cheque_certificado".equals(type)) return "Cheque certificado";
+        return "Medio de pago";
     }
 
     private String leerRespuesta(InputStream inputStream) throws Exception {

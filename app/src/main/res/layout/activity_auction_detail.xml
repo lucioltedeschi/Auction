@@ -10,15 +10,15 @@
     <LinearLayout
         android:id="@+id/topBar"
         android:layout_width="match_parent"
-        android:layout_height="wrap_content"
+        android:layout_height="64dp"
         android:background="#071827"
         android:elevation="6dp"
         android:gravity="center_vertical"
         android:orientation="horizontal"
         android:paddingLeft="12dp"
-        android:paddingTop="10dp"
+        android:paddingTop="6dp"
         android:paddingRight="14dp"
-        android:paddingBottom="10dp">
+        android:paddingBottom="6dp">
 
         <!-- Botón volver -->
         <ImageButton
@@ -44,7 +44,7 @@
                 android:letterSpacing="0.10"
                 android:text="AUCT.IO"
                 android:textColor="#FFFFFF"
-                android:textSize="17sp"
+                android:textSize="15sp"
                 android:textStyle="bold" />
 
             <LinearLayout
@@ -84,33 +84,17 @@
 
         </LinearLayout>
 
-        <!-- Derecha: método de pago -->
-        <LinearLayout
-            android:layout_width="wrap_content"
+        <TextView
+            android:id="@+id/txtTopBarPago"
+            android:layout_width="96dp"
             android:layout_height="wrap_content"
+            android:ellipsize="end"
             android:gravity="end"
-            android:orientation="vertical">
-
-            <TextView
-                android:layout_width="wrap_content"
-                android:layout_height="wrap_content"
-                android:text="MEDIO DE PAGO"
-                android:textColor="#64748B"
-                android:textSize="8sp"
-                android:textStyle="bold"
-                android:letterSpacing="0.08" />
-
-            <TextView
-                android:id="@+id/txtTopBarPago"
-                android:layout_width="wrap_content"
-                android:layout_height="wrap_content"
-                android:layout_marginTop="2dp"
-                android:text="Cargando…"
-                android:textColor="#D7E3EF"
-                android:textSize="11sp"
-                android:textStyle="bold" />
-
-        </LinearLayout>
+            android:maxLines="1"
+            android:text="Pago verificado"
+            android:textColor="#D7E3EF"
+            android:textSize="9sp"
+            android:textStyle="bold" />
 
     </LinearLayout>
 
