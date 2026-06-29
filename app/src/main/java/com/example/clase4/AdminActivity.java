@@ -15,6 +15,7 @@ import android.view.ViewGroup;
 import android.widget.ArrayAdapter;
 import android.widget.Button;
 import android.widget.EditText;
+import android.widget.HorizontalScrollView;
 import android.widget.ImageView;
 import android.widget.LinearLayout;
 import android.widget.ScrollView;
@@ -413,6 +414,21 @@ public class AdminActivity extends AppCompatActivity {
             card.addView(crearTexto(propuesta, "#071827", 13, true));
         }
 
+        TextView verFotos = crearTexto(
+                "VER GALERIA COMPLETA  \u00b7  " + fotos + (fotos == 1 ? " FOTO" : " FOTOS"),
+                "#071827", 12, true);
+        verFotos.setGravity(android.view.Gravity.CENTER);
+        verFotos.setBackgroundResource(R.drawable.bg_button_outline);
+        verFotos.setCompoundDrawablesWithIntrinsicBounds(R.drawable.ic_action_photo, 0, 0, 0);
+        verFotos.setCompoundDrawablePadding(dp(8));
+        verFotos.setPadding(dp(12), dp(11), dp(12), dp(11));
+        LinearLayout.LayoutParams galeriaParams = new LinearLayout.LayoutParams(
+                LinearLayout.LayoutParams.MATCH_PARENT, LinearLayout.LayoutParams.WRAP_CONTENT);
+        galeriaParams.setMargins(0, dp(10), 0, 0);
+        verFotos.setLayoutParams(galeriaParams);
+        verFotos.setOnClickListener(v -> mostrarGaleriaConsignacion(id, titulo));
+        card.addView(verFotos);
+
         card.setOnClickListener(v -> {
             edtAdminProductoId.setText(String.valueOf(id));
             if (precio > 0) edtAdminPrecioBase.setText(String.valueOf(precio));
@@ -423,6 +439,127 @@ public class AdminActivity extends AppCompatActivity {
         });
 
         return card;
+    }
+
+    private void mostrarGaleriaConsignacion(int productId, String titulo) {
+        mostrarInfo("Cargando todas las fotos de la consignacion...");
+        executor.execute(() -> {
+            HttpURLConnection connection = null;
+            try {
+                URL url = new URL(ApiConfig.BASE_URL + "/api/admin/products/" + productId + "/photos");
+                connection = (HttpURLConnection) url.openConnection();
+                connection.setRequestMethod("GET");
+                connection.setRequestProperty("Accept", "application/json");
+                connection.setRequestProperty("Authorization", "Bearer " + token);
+
+                int status = connection.getResponseCode();
+                InputStream stream = status >= 200 && status < 300
+                        ? connection.getInputStream() : connection.getErrorStream();
+                String respuesta = leerRespuesta(stream);
+                if (status < 200 || status >= 300) {
+                    JSONObject error = new JSONObject(respuesta);
+                    throw new Exception(error.optString("error", "No se pudieron cargar las fotos"));
+                }
+                JSONArray fotos = new JSONArray(respuesta);
+                mainHandler.post(() -> construirGaleriaConsignacion(productId, titulo, fotos));
+            } catch (Exception e) {
+                mainHandler.post(() -> mostrarError(
+                        "No pudimos abrir la galeria de la consignacion #" + productId + ". " + e.getMessage()));
+            } finally {
+                if (connection != null) connection.disconnect();
+            }
+        });
+    }
+
+    private void construirGaleriaConsignacion(int productId, String titulo, JSONArray fotos) {
+        if (fotos.length() == 0) {
+            FeedbackDialog.info(this, "Consignacion sin fotos",
+                    "La consignacion #" + productId + " no tiene imagenes guardadas para revisar.");
+            return;
+        }
+
+        LinearLayout container = buildDialogContainer();
+        container.addView(crearTexto(titulo, "#071827", 17, true));
+        container.addView(crearTexto(
+                "Consignacion #" + productId + "  \u00b7  " + fotos.length()
+                        + (fotos.length() == 1 ? " foto" : " fotos")
+                        + "\nDesliza horizontalmente y toca una imagen para ampliarla.",
+                "#475569", 13, false));
+
+        HorizontalScrollView scroll = new HorizontalScrollView(this);
+        scroll.setHorizontalScrollBarEnabled(false);
+        LinearLayout fila = new LinearLayout(this);
+        fila.setOrientation(LinearLayout.HORIZONTAL);
+        fila.setPadding(0, dp(14), 0, dp(8));
+
+        for (int i = 0; i < fotos.length(); i++) {
+            JSONObject fotoJson = fotos.optJSONObject(i);
+            if (fotoJson == null) continue;
+            String base64 = fotoJson.optString("fotoBase64", "");
+            Bitmap bitmap = decodificarImagenBase64(base64);
+            if (bitmap == null) continue;
+
+            LinearLayout bloque = new LinearLayout(this);
+            bloque.setOrientation(LinearLayout.VERTICAL);
+            LinearLayout.LayoutParams bloqueParams = new LinearLayout.LayoutParams(dp(220),
+                    LinearLayout.LayoutParams.WRAP_CONTENT);
+            bloqueParams.setMargins(0, 0, dp(12), 0);
+            bloque.setLayoutParams(bloqueParams);
+
+            ImageView imagen = new ImageView(this);
+            imagen.setImageBitmap(bitmap);
+            imagen.setScaleType(ImageView.ScaleType.CENTER_CROP);
+            imagen.setBackgroundResource(R.drawable.bg_card_premium);
+            imagen.setClipToOutline(true);
+            imagen.setLayoutParams(new LinearLayout.LayoutParams(dp(220), dp(220)));
+            int numero = fotoJson.optInt("orden", i + 1);
+            imagen.setContentDescription("Foto " + numero + " de la consignacion " + productId);
+            imagen.setOnClickListener(v -> mostrarFotoAmpliada(bitmap, titulo, numero, fotos.length()));
+
+            TextView pie = crearTexto("FOTO " + numero + " DE " + fotos.length(), "#A8872F", 11, true);
+            pie.setGravity(android.view.Gravity.CENTER);
+            pie.setPadding(0, dp(8), 0, 0);
+            bloque.addView(imagen);
+            bloque.addView(pie);
+            fila.addView(bloque);
+        }
+
+        scroll.addView(fila);
+        container.addView(scroll);
+        new AlertDialog.Builder(this)
+                .setTitle("Galeria de inspeccion")
+                .setView(container)
+                .setPositiveButton("CERRAR", null)
+                .show();
+    }
+
+    private Bitmap decodificarImagenBase64(String base64) {
+        try {
+            if (base64 == null || base64.trim().isEmpty() || "null".equals(base64)) return null;
+            byte[] bytes = Base64.decode(base64, Base64.DEFAULT);
+            return BitmapFactory.decodeByteArray(bytes, 0, bytes.length);
+        } catch (Exception ignored) {
+            return null;
+        }
+    }
+
+    private void mostrarFotoAmpliada(Bitmap bitmap, String titulo, int numero, int total) {
+        ImageView imagen = new ImageView(this);
+        imagen.setImageBitmap(bitmap);
+        imagen.setAdjustViewBounds(true);
+        imagen.setScaleType(ImageView.ScaleType.FIT_CENTER);
+        imagen.setPadding(dp(8), dp(8), dp(8), dp(8));
+
+        ScrollView scroll = new ScrollView(this);
+        scroll.addView(imagen, new ScrollView.LayoutParams(
+                ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT));
+
+        new AlertDialog.Builder(this)
+                .setTitle("Foto " + numero + " de " + total)
+                .setMessage(titulo)
+                .setView(scroll)
+                .setPositiveButton("CERRAR", null)
+                .show();
     }
 
     private void seleccionarMedioPendiente(JSONObject medio) {
@@ -614,7 +751,6 @@ public class AdminActivity extends AppCompatActivity {
                 body.put("condicionesPropuestas", "Condiciones informadas por la empresa y sujetas a aceptacion del usuario.");
             }
             body.put("ubicacionDeposito", "Depósito asignado desde panel interno");
-            body.put("seguro", "Poliza base contratada por la empresa segun valor base propuesto.");
         } catch (Exception e) {
             mostrarError("Precio base y comision deben ser numericos.");
             return;

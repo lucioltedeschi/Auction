@@ -20,6 +20,7 @@
     "test:live:concurrency": "node scripts/test-live-concurrency.js",
     "test:live:broadcast": "node scripts/test-ws-bid-broadcast.js",
     "test:auction-finalization": "node scripts/test-auction-finalization.js",
+    "test:consignment-proposal": "node scripts/test-consignment-proposal.js",
     "build:android": "gradlew.bat :app:assembleDebug"
   },
   "repository": {

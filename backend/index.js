@@ -3068,6 +3068,37 @@ app.get("/api/admin/products/pending", requireEmployee, async (req, res) => {
   }
 });
 
+app.get("/api/admin/products/:productId/photos", requireEmployee, async (req, res) => {
+  try {
+    const pool = await poolPromise;
+    const productResult = await pool
+      .request()
+      .input("productId", sql.Int, req.params.productId)
+      .query("SELECT identificador FROM Products WHERE identificador = @productId");
+
+    if (productResult.recordset.length === 0) {
+      return res.status(404).json({ error: "Consignacion no encontrada" });
+    }
+
+    const result = await pool
+      .request()
+      .input("productId", sql.Int, req.params.productId)
+      .query(`
+        SELECT
+          identificador AS id,
+          orden,
+          CAST('' AS XML).value('xs:base64Binary(sql:column("foto"))', 'VARCHAR(MAX)') AS fotoBase64
+        FROM Photos
+        WHERE producto = @productId
+        ORDER BY orden, identificador
+      `);
+
+    res.status(200).json(result.recordset);
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
 app.patch("/api/admin/products/:productId/review", requireEmployee, async (req, res) => {
   try {
     const {
@@ -3075,7 +3106,6 @@ app.patch("/api/admin/products/:productId/review", requireEmployee, async (req, 
       motivoRechazo,
       ubicacionDeposito,
       seguro,
-      revisor,
       precioBase,
       comision,
       condicionesPropuestas,
@@ -3086,6 +3116,9 @@ app.patch("/api/admin/products/:productId/review", requireEmployee, async (req, 
         : estadoAprobacion;
     const precioBaseNumerico = Number(precioBase);
     const comisionNumerica = Number(comision);
+    const ubicacionNormalizada = String(ubicacionDeposito || "").trim() || null;
+    const seguroNormalizado = String(seguro || "").trim() || null;
+    const condicionesNormalizadas = String(condicionesPropuestas || "").trim() || null;
 
     if (![ESTADOS_CONSIGNACION.PROPUESTA_ENVIADA, ESTADOS_CONSIGNACION.RECHAZADO].includes(estadoSolicitado)) {
       return res.status(400).json({
@@ -3108,7 +3141,31 @@ app.patch("/api/admin/products/:productId/review", requireEmployee, async (req, 
       });
     }
 
+    if (ubicacionNormalizada && ubicacionNormalizada.length > 250) {
+      return res.status(400).json({ error: "La ubicacion del deposito no puede superar 250 caracteres" });
+    }
+    if (condicionesNormalizadas && condicionesNormalizadas.length > 500) {
+      return res.status(400).json({ error: "Las condiciones de la propuesta no pueden superar 500 caracteres" });
+    }
+    if (seguroNormalizado && seguroNormalizado.length > 30) {
+      return res.status(400).json({
+        error: "El seguro debe ser un numero de poliza existente de hasta 30 caracteres, no una descripcion",
+      });
+    }
+
     const pool = await poolPromise;
+
+    if (seguroNormalizado) {
+      const seguroResult = await pool
+        .request()
+        .input("seguro", sql.VarChar(30), seguroNormalizado)
+        .query("SELECT nroPoliza FROM Insurances WHERE nroPoliza = @seguro");
+      if (seguroResult.recordset.length === 0) {
+        return res.status(400).json({
+          error: `La poliza ${seguroNormalizado} no existe. Deje el seguro vacio o seleccione una poliza registrada.`,
+        });
+      }
+    }
 
     const productoResult = await pool
       .request()
@@ -3136,13 +3193,13 @@ app.patch("/api/admin/products/:productId/review", requireEmployee, async (req, 
       .request()
       .input("productId", sql.Int, req.params.productId)
       .input("estadoAprobacion", sql.VarChar, estadoSolicitado)
-      .input("motivoRechazo", sql.VarChar, estadoSolicitado === ESTADOS_CONSIGNACION.RECHAZADO ? motivoRechazo : null)
-      .input("ubicacionDeposito", sql.VarChar, ubicacionDeposito || null)
-      .input("seguro", sql.VarChar, seguro || null)
-      .input("revisor", sql.Int, revisor || null)
+      .input("motivoRechazo", sql.VarChar(500), estadoSolicitado === ESTADOS_CONSIGNACION.RECHAZADO ? String(motivoRechazo).slice(0, 500) : null)
+      .input("ubicacionDeposito", sql.VarChar(250), ubicacionNormalizada)
+      .input("seguro", sql.VarChar(30), seguroNormalizado)
+      .input("revisor", sql.Int, Number(req.usuario.sub))
       .input("precioBase", sql.Decimal(18, 2), estadoSolicitado === ESTADOS_CONSIGNACION.PROPUESTA_ENVIADA ? precioBaseNumerico : null)
       .input("comision", sql.Decimal(18, 2), estadoSolicitado === ESTADOS_CONSIGNACION.PROPUESTA_ENVIADA ? comisionNumerica : null)
-      .input("condicionesPropuestas", sql.VarChar, condicionesPropuestas || null)
+      .input("condicionesPropuestas", sql.VarChar(500), condicionesNormalizadas)
       .query(`
         UPDATE Products
         SET
