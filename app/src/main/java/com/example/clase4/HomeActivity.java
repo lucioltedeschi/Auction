@@ -8,6 +8,7 @@ import android.os.Handler;
 import android.os.Looper;
 import android.view.View;
 import android.widget.Button;
+import android.widget.ImageView;
 import android.widget.LinearLayout;
 import android.widget.TextView;
 import android.widget.ScrollView;
@@ -32,6 +33,9 @@ public class HomeActivity extends AppCompatActivity {
     private TextView txtMensajeHome;
     private Button btnActualizarSubastas;
     private LinearLayout contenedorSubastas;
+    private ImageView imgHomeAvisos;
+    private TextView txtBadgeAvisos;
+    private View tileAvisos;
 
     private Button btnMediosPago = null;
     private Button btnSolicitarSubasta = null;
@@ -72,6 +76,9 @@ public class HomeActivity extends AppCompatActivity {
         btnCompras = null;
         btnAdmin = null;
         contenedorSubastas = findViewById(R.id.contenedorSubastas);
+        imgHomeAvisos = findViewById(R.id.imgHomeAvisos);
+        txtBadgeAvisos = findViewById(R.id.txtBadgeAvisos);
+        tileAvisos = findViewById(R.id.btnNotificaciones);
 
         SharedPreferences preferences = getSharedPreferences("sesion", MODE_PRIVATE);
 
@@ -131,6 +138,46 @@ public class HomeActivity extends AppCompatActivity {
     protected void onResume() {
         super.onResume();
         cargarSubastas();
+        cargarAvisosSinLeer();
+    }
+
+    private void cargarAvisosSinLeer() {
+        executor.execute(() -> {
+            HttpURLConnection connection = null;
+            try {
+                connection = (HttpURLConnection) new URL(ApiConfig.BASE_URL + "/api/clients/"
+                        + userId + "/notifications").openConnection();
+                connection.setRequestMethod("GET");
+                connection.setRequestProperty("Accept", "application/json");
+                connection.setRequestProperty("Authorization", "Bearer " + token);
+                if (connection.getResponseCode() != 200) return;
+                JSONArray avisos = new JSONArray(leerRespuesta(connection.getInputStream()));
+                int sinLeer = 0;
+                for (int i = 0; i < avisos.length(); i++) {
+                    if (!"si".equals(avisos.optJSONObject(i).optString("leida", "no"))) sinLeer++;
+                }
+                final int cantidad = sinLeer;
+                mainHandler.post(() -> actualizarIndicadorAvisos(cantidad));
+            } catch (Exception ignored) {
+            } finally {
+                if (connection != null) connection.disconnect();
+            }
+        });
+    }
+
+    private void actualizarIndicadorAvisos(int cantidad) {
+        if (cantidad > 0) {
+            imgHomeAvisos.setBackgroundResource(R.drawable.bg_notifications_unread);
+            imgHomeAvisos.setColorFilter(Color.parseColor("#071827"));
+            txtBadgeAvisos.setText(cantidad == 1 ? "1 NUEVO" : cantidad + " NUEVOS");
+            txtBadgeAvisos.setVisibility(View.VISIBLE);
+            tileAvisos.setContentDescription("Avisos, " + cantidad + " sin leer");
+        } else {
+            imgHomeAvisos.setBackgroundResource(R.drawable.bg_icon_circle);
+            imgHomeAvisos.setColorFilter(null);
+            txtBadgeAvisos.setVisibility(View.GONE);
+            tileAvisos.setContentDescription("Avisos, ninguno sin leer");
+        }
     }
 
     private void cargarSubastas() {
@@ -205,6 +252,8 @@ public class HomeActivity extends AppCompatActivity {
                 String categoria = subasta.optString("categoria", "-");
                 String moneda = formatearMoneda(subasta.optString("moneda", "-"));
                 boolean puedePujar = subasta.optBoolean("puedePujar", false);
+                boolean cumpleRequisitos = subasta.optBoolean("cumpleRequisitos", false);
+                boolean abiertaAhora = subasta.optBoolean("abiertaAhora", false);
                 String motivoBloqueo = subasta.optString("motivoBloqueo", "");
 
                 View card = crearCardSubasta(
@@ -216,6 +265,8 @@ public class HomeActivity extends AppCompatActivity {
                         categoria,
                         moneda,
                         puedePujar,
+                        cumpleRequisitos,
+                        abiertaAhora,
                         motivoBloqueo
                 );
 
@@ -250,6 +301,8 @@ public class HomeActivity extends AppCompatActivity {
             String categoria,
             String moneda,
             boolean puedePujar,
+            boolean cumpleRequisitos,
+            boolean abiertaAhora,
             String motivoBloqueo
     ) {
         LinearLayout card = new LinearLayout(this);
@@ -278,14 +331,14 @@ public class HomeActivity extends AppCompatActivity {
         visual.setLayoutParams(visualParams);
 
         TextView chipLive = new TextView(this);
-        chipLive.setText(estado.toUpperCase() + "  -  SUBASTA #" + id);
+        chipLive.setText((abiertaAhora ? "EN VIVO" : "PROGRAMADA") + "  -  SUBASTA #" + id);
         chipLive.setTextColor(Color.WHITE);
         chipLive.setTextSize(11);
         chipLive.setTypeface(null, android.graphics.Typeface.BOLD);
         chipLive.setLetterSpacing(0.08f);
 
         TextView titleVisual = new TextView(this);
-        titleVisual.setText("Subasta verificada");
+        titleVisual.setText(abiertaAhora ? "Subasta en curso" : "Próxima subasta");
         titleVisual.setTextColor(Color.WHITE);
         titleVisual.setTextSize(23);
         titleVisual.setTypeface(null, android.graphics.Typeface.BOLD);
@@ -393,7 +446,11 @@ public class HomeActivity extends AppCompatActivity {
         // ESTADO DE ACCESO
         TextView acceso = new TextView(this);
 
-        if (puedePujar) {
+        if (!abiertaAhora) {
+            acceso.setText("PROGRAMADA - LAS PUJAS COMIENZAN EL " + fecha + " A LAS " + hora + " (GMT-3)");
+            acceso.setTextColor(Color.parseColor("#7C5E10"));
+            acceso.setBackgroundResource(R.drawable.bg_gold_chip);
+        } else if (puedePujar) {
             acceso.setText("USUARIO HABILITADO PARA PUJAR");
             acceso.setTextColor(Color.parseColor("#166534"));
             acceso.setBackgroundResource(R.drawable.bg_success_chip);
@@ -419,12 +476,13 @@ public class HomeActivity extends AppCompatActivity {
         acceso.setLayoutParams(accesoParams);
 
         Button btnVerDetalle = new Button(this);
-        btnVerDetalle.setText(puedePujar ? "ENTRAR AL CATALOGO" : "VER CATALOGO");
+        btnVerDetalle.setText(!abiertaAhora ? "VER CATALOGO - AUN NO INICIO"
+                : (puedePujar ? "ENTRAR AL CATALOGO" : "VER CATALOGO"));
         btnVerDetalle.setTextColor(Color.parseColor("#071827"));
         btnVerDetalle.setTextSize(12);
         btnVerDetalle.setTypeface(null, android.graphics.Typeface.BOLD);
         btnVerDetalle.setBackgroundResource(
-                puedePujar ? R.drawable.bg_button_gold : R.drawable.bg_button_outline
+                (abiertaAhora && puedePujar) ? R.drawable.bg_button_gold : R.drawable.bg_button_outline
         );
 
         LinearLayout.LayoutParams btnParams = new LinearLayout.LayoutParams(
@@ -438,7 +496,11 @@ public class HomeActivity extends AppCompatActivity {
             Intent intent = new Intent(HomeActivity.this, AuctionDetailActivity.class);
             intent.putExtra("auctionId", id);
             intent.putExtra("puedePujar", puedePujar);
+            intent.putExtra("cumpleRequisitos", cumpleRequisitos);
             intent.putExtra("categoria", categoria);
+            intent.putExtra("estado", abiertaAhora ? "en_curso" : "programada");
+            intent.putExtra("fecha", fecha);
+            intent.putExtra("hora", hora);
             startActivity(intent);
         });
 

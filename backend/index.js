@@ -1457,14 +1457,21 @@ app.post("/api/clients/:clientId/active-auction", async (req, res) => {
       .request()
       .input("auctionId", sql.Int, auctionId)
       .query(`
-        SELECT identificador
+        SELECT identificador,
+          DATEDIFF(SECOND, ${SQL_NOW_ARGENTINA},
+            CAST(CONVERT(varchar(10), fecha, 23) + ' ' + CONVERT(varchar(8), hora, 108) AS DATETIME)) AS segundosHastaInicio
         FROM Auctions
         WHERE identificador = @auctionId
-          AND estado IN ('abierta', 'en_curso', 'programada')
+          AND estado IN ('abierta', 'en_curso')
       `);
 
     if (auctionResult.recordset.length === 0) {
-      return res.status(404).json({ error: "Subasta no disponible" });
+      return res.status(409).json({ error: "La subasta todavia no esta abierta para participar" });
+    }
+    if (Number(auctionResult.recordset[0].segundosHastaInicio) > 0) {
+      return res.status(409).json({
+        error: `La subasta comienza dentro de ${auctionResult.recordset[0].segundosHastaInicio} segundos. Mientras tanto podes consultar el catalogo.`,
+      });
     }
 
     const sesion = registrarSesionActiva(clientId, auctionId);
@@ -1615,7 +1622,11 @@ app.get("/api/clients/:clientId/auctions", async (req, res) => {
         a.estado,
         a.ubicacion,
         a.categoria,
-        a.moneda
+        a.moneda,
+        CONVERT(varchar(10), a.fecha, 23) AS fechaInicio,
+        CONVERT(varchar(5), a.hora, 108) AS horaInicio,
+        DATEDIFF(SECOND, ${SQL_NOW_ARGENTINA},
+          CAST(CONVERT(varchar(10), a.fecha, 23) + ' ' + CONVERT(varchar(8), a.hora, 108) AS DATETIME)) AS segundosHastaInicio
       FROM Auctions a
       WHERE a.estado IN ('abierta', 'en_curso', 'programada')
       ORDER BY a.fecha, a.hora
@@ -1630,7 +1641,11 @@ app.get("/api/clients/:clientId/auctions", async (req, res) => {
       const puedeVer =
         cliente.estado === "activo" && cliente.admitido === "si";
 
-      const puedePujar =
+      const abiertaAhora =
+        ["abierta", "en_curso"].includes(subasta.estado) &&
+        Number(subasta.segundosHastaInicio) <= 0;
+
+      const cumpleRequisitos =
         puedeVer &&
         categoriaOk &&
         conexionOk &&
@@ -1638,13 +1653,21 @@ app.get("/api/clients/:clientId/auctions", async (req, res) => {
         cliente.multasPendientes <= 0 &&
         cliente.comprasVencidas <= 0;
 
+      const puedePujar =
+        cumpleRequisitos && abiertaAhora;
+
       return {
         ...subasta,
         puedeVer,
         puedePujar,
+        cumpleRequisitos,
+        abiertaAhora,
+        fase: abiertaAhora ? "en_vivo" : "programada",
         subastaActivaId: sesionActiva ? sesionActiva.auctionId : null,
         motivoBloqueo: puedePujar
           ? null
+          : !abiertaAhora
+          ? `Las pujas se habilitan el ${subasta.fechaInicio} a las ${subasta.horaInicio} (GMT-3)`
           : !puedeVer
           ? "Usuario no activo o no admitido"
           : !conexionOk
@@ -1845,6 +1868,13 @@ app.get("/api/auctions/:auctionId", async (req, res) => {
           a.seguridadPropia,
           a.categoria,
           a.moneda,
+          CONVERT(varchar(10), a.fecha, 23) AS fechaInicio,
+          CONVERT(varchar(5), a.hora, 108) AS horaInicio,
+          DATEDIFF(SECOND, ${SQL_NOW_ARGENTINA},
+            CAST(CONVERT(varchar(10), a.fecha, 23) + ' ' + CONVERT(varchar(8), a.hora, 108) AS DATETIME)) AS segundosHastaInicio,
+          CASE WHEN a.estado IN ('abierta','en_curso')
+            AND CAST(CONVERT(varchar(10), a.fecha, 23) + ' ' + CONVERT(varchar(8), a.hora, 108) AS DATETIME) <= ${SQL_NOW_ARGENTINA}
+            THEN 1 ELSE 0 END AS abiertaAhora,
           u.nombre + ' ' + u.apellido AS subastador
         FROM Auctions a
         LEFT JOIN Auctioneers au
@@ -2275,6 +2305,8 @@ async function crearPuja(req, res) {
           a.categoria,
           a.moneda,
           a.duracionItemMinutos,
+          DATEDIFF(SECOND, ${SQL_NOW_ARGENTINA},
+            CAST(CONVERT(varchar(10), a.fecha, 23) + ' ' + CONVERT(varchar(8), a.hora, 108) AS DATETIME)) AS segundosHastaInicio,
           DATEDIFF(SECOND, ${SQL_NOW_ARGENTINA}, DATEADD(MINUTE, a.duracionItemMinutos,
             COALESCE((SELECT MAX(bb.fechaHora) FROM Bids bb WHERE bb.item=ci.identificador),
               CAST(CONVERT(varchar(10), a.fecha, 23) + ' ' + CONVERT(varchar(8), a.hora, 108) AS DATETIME)
@@ -2295,6 +2327,12 @@ async function crearPuja(req, res) {
     }
 
     const item = itemResult.recordset[0];
+
+    if (Number(item.segundosHastaInicio) > 0) {
+      return res.status(403).json({
+        error: `La subasta todavia no comenzo. Faltan ${item.segundosHastaInicio} segundos para que se habiliten las pujas.`,
+      });
+    }
 
     if (item.estado !== "abierta" && item.estado !== "en_curso") {
       return res.status(403).json({
@@ -2976,6 +3014,9 @@ app.get("/api/clients/:clientId/products", async (req, res) => {
           p.motivoRechazo,
           p.ubicacionDeposito,
           p.seguro,
+          i.compania AS seguroCompania,
+          i.importe AS seguroImporte,
+          i.polizaCombinada AS seguroPolizaCombinada,
           p.precioBaseSugerido,
           p.precioBasePropuesto,
           p.comisionPropuesta,
@@ -2986,6 +3027,8 @@ app.get("/api/clients/:clientId/products", async (req, res) => {
         FROM Products p
         LEFT JOIN Photos ph
           ON ph.producto = p.identificador
+        LEFT JOIN Insurances i
+          ON i.nroPoliza = p.seguro
         WHERE p.duenio = @clientId
         GROUP BY
           p.identificador,
@@ -2995,6 +3038,9 @@ app.get("/api/clients/:clientId/products", async (req, res) => {
           p.motivoRechazo,
           p.ubicacionDeposito,
           p.seguro,
+          i.compania,
+          i.importe,
+          i.polizaCombinada,
           p.precioBaseSugerido,
           p.precioBasePropuesto,
           p.comisionPropuesta,
@@ -3041,6 +3087,10 @@ app.get("/api/admin/products/pending", requireEmployee, async (req, res) => {
         p.comisionPropuesta,
         p.condicionesPropuestas,
         p.fechaPropuesta,
+        p.ubicacionDeposito,
+        p.seguro,
+        i.compania AS seguroCompania,
+        i.importe AS seguroImporte,
         (
           SELECT COUNT(*)
           FROM Photos ph
@@ -3056,6 +3106,8 @@ app.get("/api/admin/products/pending", requireEmployee, async (req, res) => {
       FROM Products p
       INNER JOIN Users u
         ON p.duenio = u.identificador
+      LEFT JOIN Insurances i
+        ON i.nroPoliza = p.seguro
       WHERE p.estadoAprobacion IN ('pendiente', 'pendiente_inspeccion', 'aceptado_usuario')
       ORDER BY p.fechaAlta DESC
     `);
@@ -3106,6 +3158,8 @@ app.patch("/api/admin/products/:productId/review", requireEmployee, async (req, 
       motivoRechazo,
       ubicacionDeposito,
       seguro,
+      companiaSeguro,
+      importeSeguro,
       precioBase,
       comision,
       condicionesPropuestas,
@@ -3155,23 +3209,11 @@ app.patch("/api/admin/products/:productId/review", requireEmployee, async (req, 
 
     const pool = await poolPromise;
 
-    if (seguroNormalizado) {
-      const seguroResult = await pool
-        .request()
-        .input("seguro", sql.VarChar(30), seguroNormalizado)
-        .query("SELECT nroPoliza FROM Insurances WHERE nroPoliza = @seguro");
-      if (seguroResult.recordset.length === 0) {
-        return res.status(400).json({
-          error: `La poliza ${seguroNormalizado} no existe. Deje el seguro vacio o seleccione una poliza registrada.`,
-        });
-      }
-    }
-
     const productoResult = await pool
       .request()
       .input("productId", sql.Int, req.params.productId)
       .query(`
-        SELECT identificador, estadoAprobacion, duenio, descripcionCatalogo
+        SELECT identificador, estadoAprobacion, duenio, descripcionCatalogo, seguro
         FROM Products
         WHERE identificador = @productId
       `);
@@ -3189,13 +3231,61 @@ app.patch("/api/admin/products/:productId/review", requireEmployee, async (req, 
       });
     }
 
+    const productoRevisado = productoResult.recordset[0];
+    let seguroFinal = seguroNormalizado || productoRevisado.seguro || null;
+    let companiaFinal = String(companiaSeguro || "Aseguradora Rio de la Plata").trim();
+    let importeSeguroFinal = importeSeguro === undefined || importeSeguro === null || importeSeguro === ""
+      ? precioBaseNumerico : Number(importeSeguro);
+
+    if (estadoSolicitado === ESTADOS_CONSIGNACION.PROPUESTA_ENVIADA) {
+      if (!Number.isFinite(importeSeguroFinal) || importeSeguroFinal < precioBaseNumerico) {
+        return res.status(400).json({
+          error: "La cobertura del seguro debe ser igual o superior al precio base propuesto",
+        });
+      }
+      if (!companiaFinal || companiaFinal.length > 150) {
+        return res.status(400).json({ error: "Debe indicar una compania aseguradora valida" });
+      }
+
+      if (seguroFinal) {
+        const seguroResult = await pool
+          .request()
+          .input("seguro", sql.VarChar(30), seguroFinal)
+          .input("duenio", sql.Int, productoRevisado.duenio)
+          .query("SELECT nroPoliza, compania, importe FROM Insurances WHERE nroPoliza=@seguro AND duenio=@duenio");
+        if (seguroResult.recordset.length === 0) {
+          return res.status(400).json({
+            error: `La poliza ${seguroFinal} no existe o pertenece a otro consignante.`,
+          });
+        }
+        companiaFinal = seguroResult.recordset[0].compania;
+        importeSeguroFinal = Number(seguroResult.recordset[0].importe);
+        if (importeSeguroFinal < precioBaseNumerico) {
+          return res.status(400).json({
+            error: `La poliza ${seguroFinal} no cubre el precio base propuesto. Amplie su cobertura o genere una nueva.`,
+          });
+        }
+      } else {
+        seguroFinal = `AUCT-${productoRevisado.duenio}-${req.params.productId}-${Date.now().toString(36).toUpperCase()}`.slice(0, 30);
+        await pool.request()
+          .input("seguro", sql.VarChar(30), seguroFinal)
+          .input("duenio", sql.Int, productoRevisado.duenio)
+          .input("compania", sql.VarChar(150), companiaFinal)
+          .input("importe", sql.Decimal(18, 2), importeSeguroFinal)
+          .query(`
+            INSERT INTO Insurances (nroPoliza, duenio, compania, polizaCombinada, importe)
+            VALUES (@seguro, @duenio, @compania, 'no', @importe)
+          `);
+      }
+    }
+
     await pool
       .request()
       .input("productId", sql.Int, req.params.productId)
       .input("estadoAprobacion", sql.VarChar, estadoSolicitado)
       .input("motivoRechazo", sql.VarChar(500), estadoSolicitado === ESTADOS_CONSIGNACION.RECHAZADO ? String(motivoRechazo).slice(0, 500) : null)
       .input("ubicacionDeposito", sql.VarChar(250), ubicacionNormalizada)
-      .input("seguro", sql.VarChar(30), seguroNormalizado)
+      .input("seguro", sql.VarChar(30), estadoSolicitado === ESTADOS_CONSIGNACION.PROPUESTA_ENVIADA ? seguroFinal : null)
       .input("revisor", sql.Int, Number(req.usuario.sub))
       .input("precioBase", sql.Decimal(18, 2), estadoSolicitado === ESTADOS_CONSIGNACION.PROPUESTA_ENVIADA ? precioBaseNumerico : null)
       .input("comision", sql.Decimal(18, 2), estadoSolicitado === ESTADOS_CONSIGNACION.PROPUESTA_ENVIADA ? comisionNumerica : null)
@@ -3219,13 +3309,17 @@ app.patch("/api/admin/products/:productId/review", requireEmployee, async (req, 
         WHERE identificador = @productId
       `);
 
-    const productoRevisado = productoResult.recordset[0];
     await registrarAviso(pool, productoRevisado.duenio,
       estadoSolicitado === ESTADOS_CONSIGNACION.PROPUESTA_ENVIADA
         ? "Propuesta de consignación disponible" : "Consignación rechazada",
       estadoSolicitado === ESTADOS_CONSIGNACION.PROPUESTA_ENVIADA
         ? `${productoRevisado.descripcionCatalogo}: base ${precioBaseNumerico.toFixed(2)}, comisión ${comisionNumerica.toFixed(2)}. Revisá y aceptá las condiciones desde Consignar.`
         : `${productoRevisado.descripcionCatalogo}: ${motivoRechazo}`);
+
+    if (estadoSolicitado === ESTADOS_CONSIGNACION.PROPUESTA_ENVIADA) {
+      await registrarAviso(pool, productoRevisado.duenio, "Poliza de custodia asignada",
+        `${productoRevisado.descripcionCatalogo}: poliza ${seguroFinal}, compania ${companiaFinal}, cobertura ${importeSeguroFinal.toFixed(2)} y deposito ${ubicacionNormalizada || "a confirmar"}. Podes solicitar a la aseguradora una ampliacion de cobertura abonando la diferencia.`);
+    }
 
     res.status(200).json({
       mensaje: estadoSolicitado === ESTADOS_CONSIGNACION.PROPUESTA_ENVIADA
@@ -3234,6 +3328,9 @@ app.patch("/api/admin/products/:productId/review", requireEmployee, async (req, 
       productoId: Number(req.params.productId),
       estadoAprobacion: estadoSolicitado,
       estadoDescripcion: estadoConsignacionLegible(estadoSolicitado),
+      seguro: estadoSolicitado === ESTADOS_CONSIGNACION.PROPUESTA_ENVIADA
+        ? { nroPoliza: seguroFinal, compania: companiaFinal, importe: importeSeguroFinal }
+        : null,
     });
   } catch (err) {
     res.status(500).json({
@@ -3300,14 +3397,15 @@ app.get("/api/admin/action-options", requireEmployee, async (req, res) => {
       SELECT ar.identificador AS ventaId, ar.cliente AS clienteId, ar.subasta AS subastaId,
              u.nombre + ' ' + u.apellido AS cliente, p.descripcionCatalogo,
              a.moneda, ar.importe + ar.comision + ISNULL(ar.costoEnvio,0) AS total,
-             CAST((ar.importe + ar.comision + ISNULL(ar.costoEnvio,0))*0.10 AS decimal(18,2)) AS multaSugerida,
+             ar.importe AS importeOfertado,
+             CAST(ar.importe*0.10 AS decimal(18,2)) AS multaSugerida,
              DATEADD(HOUR,72,ar.fechaVenta) AS vencimiento
       FROM AuctionRecords ar
       INNER JOIN Users u ON u.identificador=ar.cliente
       INNER JOIN Products p ON p.identificador=ar.producto
       INNER JOIN Auctions a ON a.identificador=ar.subasta
       WHERE ar.estadoPago='pendiente' AND DATEADD(HOUR,72,ar.fechaVenta)<=${SQL_NOW_ARGENTINA}
-        AND NOT EXISTS (SELECT 1 FROM Fines f WHERE f.cliente=ar.cliente AND f.subasta=ar.subasta AND f.pagada='no')
+        AND NOT EXISTS (SELECT 1 FROM Fines f WHERE f.venta=ar.identificador)
       ORDER BY ar.fechaVenta
     `);
     res.status(200).json({ productos: productos.recordset, subastas: subastas.recordset,
@@ -3937,7 +4035,7 @@ app.post("/api/purchases/:purchaseId/pay", async (req, res) => {
     const purchaseResult = await pool.request()
       .input("purchaseId", sql.Int, req.params.purchaseId)
       .query(`
-        SELECT ar.identificador, ar.cliente, ar.estadoPago, ar.importe, ar.comision,
+        SELECT ar.identificador, ar.cliente, ar.subasta, ar.estadoPago, ar.importe, ar.comision,
                ISNULL(ar.costoEnvio, 0) AS costoEnvio, a.moneda, p.descripcionCatalogo
         FROM AuctionRecords ar
         INNER JOIN Auctions a ON a.identificador = ar.subasta
@@ -3970,7 +4068,26 @@ app.post("/api/purchases/:purchaseId/pay", async (req, res) => {
     const payment = paymentResult.recordset[0];
     const total = Number(purchase.importe) + Number(purchase.comision) + Number(purchase.costoEnvio);
     if (payment.tipo === "cheque_certificado" && Number(payment.montoDisponible) < total) {
-      return res.status(409).json({ error: "El cheque certificado no cubre el total de la compra" });
+      const multa = Number((Number(purchase.importe) * 0.10).toFixed(2));
+      const fineResult = await pool.request()
+        .input("cliente", sql.Int, purchase.cliente)
+        .input("subasta", sql.Int, purchase.subasta)
+        .input("venta", sql.Int, purchase.identificador)
+        .input("monto", sql.Decimal(18, 2), multa)
+        .query(`
+          INSERT INTO Fines (cliente,subasta,venta,monto,pagada)
+          OUTPUT INSERTED.identificador AS id
+          SELECT @cliente,@subasta,@venta,@monto,'no'
+          WHERE NOT EXISTS (SELECT 1 FROM Fines WHERE venta=@venta)
+        `);
+      if (fineResult.recordset.length > 0) {
+        await registrarAviso(pool, purchase.cliente, "Multa pendiente por fondos insuficientes",
+          `El medio seleccionado no cubre la compra ${purchase.descripcionCatalogo}. Se aplico la multa reglamentaria del 10% de la oferta (${purchase.moneda} ${multa.toFixed(2)}). Tenes hasta 72 horas desde la adjudicacion para presentar los fondos.`);
+      }
+      return res.status(409).json({
+        error: `El cheque certificado no cubre el total de la compra. Se genero la multa reglamentaria del 10% de la oferta (${purchase.moneda} ${multa.toFixed(2)}).`,
+        multaId: fineResult.recordset[0]?.id || null,
+      });
     }
 
     const result = await pool
@@ -4029,15 +4146,23 @@ app.get("/api/clients/:clientId/fines", async (req, res) => {
         SELECT
           f.identificador AS id,
           f.subasta AS subastaId,
+          f.venta AS ventaId,
           f.monto,
           f.pagada,
           f.fechaGeneracion,
           a.fecha,
           a.hora,
-          a.moneda
+          a.moneda,
+          ar.importe AS importeOfertado,
+          DATEADD(HOUR, 72, ar.fechaVenta) AS vencimientoPago,
+          p.descripcionCatalogo
         FROM Fines f
         INNER JOIN Auctions a
           ON f.subasta = a.identificador
+        LEFT JOIN AuctionRecords ar
+          ON ar.identificador = f.venta
+        LEFT JOIN Products p
+          ON p.identificador = ar.producto
         WHERE f.cliente = @clientId
         ORDER BY f.fechaGeneracion DESC
       `);
@@ -4050,7 +4175,84 @@ app.get("/api/clients/:clientId/fines", async (req, res) => {
   }
 });
 
+async function pagarMultaConMedio(req, res) {
+  const authHeader = req.header("Authorization") || "";
+  const payload = decodificarTokenDemo(authHeader.replace(/^Bearer\s+/i, ""));
+  const medioPagoId = Number(req.body?.medioPagoId);
+  if (!payload?.sub) return res.status(401).json({ error: "Sesion invalida" });
+  if (!medioPagoId) return res.status(400).json({ error: "Selecciona un medio de pago verificado" });
+
+  const pool = await poolPromise;
+  const fineResult = await pool.request()
+    .input("fineId", sql.Int, req.params.fineId)
+    .query(`
+      SELECT f.identificador, f.cliente, f.monto, f.pagada, a.moneda
+      FROM Fines f INNER JOIN Auctions a ON a.identificador=f.subasta
+      WHERE f.identificador=@fineId
+    `);
+  if (fineResult.recordset.length === 0) return res.status(404).json({ error: "Multa no encontrada" });
+  const fine = fineResult.recordset[0];
+  if (Number(payload.sub) !== Number(fine.cliente) && payload.rol !== "empleado") {
+    return res.status(403).json({ error: "La multa pertenece a otro usuario" });
+  }
+  if (fine.pagada === "si") return res.status(409).json({ error: "La multa ya esta pagada" });
+
+  const paymentResult = await pool.request()
+    .input("medioPagoId", sql.Int, medioPagoId)
+    .input("cliente", sql.Int, fine.cliente)
+    .input("moneda", sql.VarChar(10), fine.moneda)
+    .query(`
+      SELECT identificador, tipo, entidad, moneda, esExtranjera, ISNULL(montoDisponible,0) AS montoDisponible
+      FROM PaymentMethods
+      WHERE identificador=@medioPagoId AND cliente=@cliente AND verificado='si' AND moneda=@moneda
+        AND (@moneda='pesos' OR tipo='cuenta_bancaria'
+          OR (tipo='tarjeta_credito' AND esExtranjera='si') OR tipo='cheque_certificado')
+    `);
+  if (paymentResult.recordset.length === 0) {
+    return res.status(400).json({ error: "El medio elegido no esta verificado o no es compatible con la moneda de la multa" });
+  }
+  const payment = paymentResult.recordset[0];
+  if (payment.tipo === "cheque_certificado" && Number(payment.montoDisponible) < Number(fine.monto)) {
+    return res.status(409).json({ error: "El cheque certificado no alcanza para regularizar la multa" });
+  }
+
+  const transaction = new sql.Transaction(pool);
+  try {
+    await transaction.begin();
+    const result = await new sql.Request(transaction)
+      .input("fineId", sql.Int, req.params.fineId)
+      .query(`
+        UPDATE Fines SET pagada='si'
+        OUTPUT INSERTED.identificador AS id, INSERTED.cliente, INSERTED.monto, INSERTED.pagada
+        WHERE identificador=@fineId AND pagada='no'
+      `);
+    if (result.recordset.length === 0) {
+      await transaction.rollback();
+      return res.status(409).json({ error: "La multa ya fue regularizada" });
+    }
+    await new sql.Request(transaction)
+      .input("medioPagoId", sql.Int, medioPagoId)
+      .input("monto", sql.Decimal(18, 2), Number(fine.monto))
+      .query(`
+        UPDATE PaymentMethods
+        SET montoDisponible=CASE WHEN tipo='cheque_certificado' THEN montoDisponible-@monto ELSE montoDisponible END
+        WHERE identificador=@medioPagoId
+      `);
+    await transaction.commit();
+    await registrarAviso(pool, fine.cliente, "Multa regularizada",
+      `Se acredito el pago de la multa #${fine.identificador} por ${fine.moneda} ${Number(fine.monto).toFixed(2)} mediante ${payment.entidad || payment.tipo}.`);
+    return res.status(200).json({
+      mensaje: "Pago de multa acreditado. Ya podes volver a participar si no existen otros bloqueos.",
+      multa: result.recordset[0],
+    });
+  } catch (error) {
+    if (!transaction._aborted) await transaction.rollback().catch(() => {});
+    throw error;
+  }
+}
+
 app.patch("/api/fines/:fineId/pay", async (req, res) => {
+  return pagarMultaConMedio(req, res);
   try {
     const pool = await poolPromise;
 
@@ -4085,6 +4287,7 @@ app.patch("/api/fines/:fineId/pay", async (req, res) => {
 });
 
 app.post("/api/fines/:fineId/pay", async (req, res) => {
+  return pagarMultaConMedio(req, res);
   try {
     const pool = await poolPromise;
 
@@ -4120,6 +4323,47 @@ app.post("/api/fines/:fineId/pay", async (req, res) => {
 
 app.post("/api/admin/fines", requireEmployee, async (req, res) => {
   try {
+    const ventaId = Number(req.body?.ventaId);
+    if (!ventaId) {
+      return res.status(400).json({ error: "Debe seleccionar una compra impaga vencida" });
+    }
+    const poolReglamentario = await poolPromise;
+    const deudaResult = await poolReglamentario.request()
+      .input("ventaId", sql.Int, ventaId)
+      .query(`
+        SELECT ar.identificador AS ventaId, ar.cliente, ar.subasta, ar.importe,
+          CAST(ar.importe*0.10 AS decimal(18,2)) AS multa,
+          a.moneda, p.descripcionCatalogo
+        FROM AuctionRecords ar
+        INNER JOIN Auctions a ON a.identificador=ar.subasta
+        INNER JOIN Products p ON p.identificador=ar.producto
+        WHERE ar.identificador=@ventaId AND ar.estadoPago='pendiente'
+          AND DATEADD(HOUR,72,ar.fechaVenta)<=${SQL_NOW_ARGENTINA}
+          AND NOT EXISTS (SELECT 1 FROM Fines f WHERE f.venta=ar.identificador)
+      `);
+    if (deudaResult.recordset.length === 0) {
+      return res.status(409).json({
+        error: "La compra no esta vencida, ya fue pagada o ya tiene una multa reglamentaria",
+      });
+    }
+    const deuda = deudaResult.recordset[0];
+    const resultReglamentario = await poolReglamentario.request()
+      .input("cliente", sql.Int, deuda.cliente)
+      .input("subasta", sql.Int, deuda.subasta)
+      .input("venta", sql.Int, deuda.ventaId)
+      .input("monto", sql.Decimal(18, 2), Number(deuda.multa))
+      .query(`
+        INSERT INTO Fines (cliente, subasta, venta, monto, pagada)
+        OUTPUT INSERTED.identificador AS id, INSERTED.monto, INSERTED.pagada, INSERTED.venta AS ventaId
+        VALUES (@cliente, @subasta, @venta, @monto, 'no')
+      `);
+    await registrarAviso(poolReglamentario, deuda.cliente, "Multa pendiente por impago",
+      `La compra ${deuda.descripcionCatalogo} supero las 72 horas sin pago. Se aplico la multa reglamentaria del 10% de tu oferta: ${deuda.moneda} ${Number(deuda.multa).toFixed(2)}. Debes regularizarla antes de volver a pujar.`);
+    return res.status(201).json({
+      mensaje: "Multa reglamentaria del 10% registrada y notificada al cliente",
+      multa: resultReglamentario.recordset[0],
+    });
+
     const { clienteId, subastaId, monto } = req.body;
     const montoNumerico = Number(monto);
 

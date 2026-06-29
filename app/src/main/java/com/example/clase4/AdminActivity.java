@@ -69,6 +69,8 @@ public class AdminActivity extends AppCompatActivity {
     private EditText edtAdminMontoMulta;
     private Spinner spAdminCategoria;
     private String token;
+    private String companiaSeguroPropuesta = "Aseguradora Rio de la Plata";
+    private double coberturaSeguroPropuesta = 0;
 
     private static final int REQ_REVISAR_USUARIO = 101;
 
@@ -414,6 +416,15 @@ public class AdminActivity extends AppCompatActivity {
             card.addView(crearTexto(propuesta, "#071827", 13, true));
         }
 
+        String poliza = producto.optString("seguro", "");
+        if (!poliza.isEmpty() && !"null".equals(poliza)) {
+            card.addView(crearTexto("PÓLIZA ASIGNADA\n" + poliza
+                    + " · " + producto.optString("seguroCompania", "Aseguradora")
+                    + "\nCobertura: $" + String.format("%.2f", producto.optDouble("seguroImporte", 0))
+                    + " · Depósito: " + producto.optString("ubicacionDeposito", "A definir"),
+                    "#0F766E", 13, true));
+        }
+
         TextView verFotos = crearTexto(
                 "VER GALERIA COMPLETA  \u00b7  " + fotos + (fotos == 1 ? " FOTO" : " FOTOS"),
                 "#071827", 12, true);
@@ -749,6 +760,8 @@ public class AdminActivity extends AppCompatActivity {
                 body.put("precioBase", precio);
                 body.put("comision", comisionValor);
                 body.put("condicionesPropuestas", "Condiciones informadas por la empresa y sujetas a aceptacion del usuario.");
+                body.put("companiaSeguro", companiaSeguroPropuesta);
+                body.put("importeSeguro", coberturaSeguroPropuesta > 0 ? coberturaSeguroPropuesta : precio);
             }
             body.put("ubicacionDeposito", "Depósito asignado desde panel interno");
         } catch (Exception e) {
@@ -828,6 +841,15 @@ public class AdminActivity extends AppCompatActivity {
             return;
         }
 
+        enviarJson("/api/admin/fines", "POST", body);
+    }
+
+    private void crearMultaReglamentaria(int ventaId) {
+        JSONObject body = new JSONObject();
+        try {
+            body.put("ventaId", ventaId);
+        } catch (Exception ignored) {
+        }
         enviarJson("/api/admin/fines", "POST", body);
     }
 
@@ -1199,6 +1221,14 @@ public class AdminActivity extends AppCompatActivity {
         String comisionActual = edtAdminComision.getText().toString().trim();
         if (!comisionActual.isEmpty()) edtComision.setText(comisionActual);
         container.addView(edtComision);
+        container.addView(buildLabel("COMPAÑÍA ASEGURADORA"));
+        EditText edtCompaniaSeguro = buildInput("Compañía que emitirá la póliza", android.text.InputType.TYPE_CLASS_TEXT);
+        edtCompaniaSeguro.setText(companiaSeguroPropuesta);
+        container.addView(edtCompaniaSeguro);
+        container.addView(buildLabel("COBERTURA DEL SEGURO"));
+        EditText edtCoberturaSeguro = buildInput("Igual o superior al precio base", android.text.InputType.TYPE_NUMBER_FLAG_DECIMAL | android.text.InputType.TYPE_CLASS_NUMBER);
+        if (coberturaSeguroPropuesta > 0) edtCoberturaSeguro.setText(String.valueOf(coberturaSeguroPropuesta));
+        container.addView(edtCoberturaSeguro);
         container.addView(buildLabel("MOTIVO DE RECHAZO (solo si rechazás)"));
         EditText edtMotivo = buildInput("Motivo de rechazo, si aplica", android.text.InputType.TYPE_CLASS_TEXT);
         container.addView(edtMotivo);
@@ -1222,6 +1252,14 @@ public class AdminActivity extends AppCompatActivity {
                 edtAdminProductoId.setText(id);
                 edtAdminPrecioBase.setText(edtPrecio.getText().toString().trim());
                 edtAdminComision.setText(edtComision.getText().toString().trim());
+                companiaSeguroPropuesta = edtCompaniaSeguro.getText().toString().trim();
+                String cobertura = edtCoberturaSeguro.getText().toString().trim();
+                try {
+                    coberturaSeguroPropuesta = cobertura.isEmpty() ? 0 : Double.parseDouble(cobertura);
+                } catch (NumberFormatException error) {
+                    mostrarError("La cobertura del seguro debe ser un importe numérico.");
+                    return;
+                }
                 edtAdminMotivoRechazo.setText("");
                 dialog.dismiss();
                 revisarProducto("propuesta_enviada");
@@ -1435,7 +1473,7 @@ public class AdminActivity extends AppCompatActivity {
             for (int i=0; i<impagos.length(); i++) {
                 JSONObject p = impagos.optJSONObject(i);
                 opciones.add(p.optString("cliente") + " · " + p.optString("descripcionCatalogo")
-                        + "\nTotal impago: " + p.optString("moneda") + " " + p.optDouble("total")
+                        + "\nOferta impaga: " + p.optString("moneda") + " " + p.optDouble("importeOfertado")
                         + " · Multa 10%: " + p.optDouble("multaSugerida"));
             }
             FeedbackDialog.seleccionar(this, "Aplicar multa reglamentaria", "Solo se muestran impagos vencidos y sin una multa pendiente.", opciones, i -> {
@@ -1444,7 +1482,8 @@ public class AdminActivity extends AppCompatActivity {
                 edtAdminSubastaId.setText(String.valueOf(p.optInt("subastaId")));
                 edtAdminMontoMulta.setText(String.valueOf(p.optDouble("multaSugerida")));
                 FeedbackDialog.confirmar(this, "Confirmar multa del 10%", p.optString("cliente") + "\n"
-                        + p.optString("descripcionCatalogo") + "\nMonto: " + p.optString("moneda") + " " + p.optDouble("multaSugerida"), this::crearMulta);
+                        + p.optString("descripcionCatalogo") + "\nMonto: " + p.optString("moneda") + " " + p.optDouble("multaSugerida"),
+                        () -> crearMultaReglamentaria(p.optInt("ventaId")));
             });
         });
     }

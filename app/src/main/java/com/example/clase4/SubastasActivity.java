@@ -158,11 +158,13 @@ public class SubastasActivity extends AppCompatActivity {
                 String categoria = subasta.optString("categoria", "-");
                 String moneda = formatearMoneda(subasta.optString("moneda", "-"));
                 boolean puedePujar = subasta.optBoolean("puedePujar", false);
+                boolean cumpleRequisitos = subasta.optBoolean("cumpleRequisitos", false);
+                boolean abiertaAhora = subasta.optBoolean("abiertaAhora", false);
                 String motivoBloqueo = subasta.optString("motivoBloqueo", "");
                 int subastaActivaId = subasta.optInt("subastaActivaId", 0);
 
                 View card = crearCardSubasta(id, fecha, hora, estado, ubicacion, categoria,
-                        moneda, puedePujar, motivoBloqueo, subastaActivaId);
+                        moneda, puedePujar, cumpleRequisitos, abiertaAhora, motivoBloqueo, subastaActivaId);
                 contenedorSubastas.addView(card);
             }
         } catch (Exception e) {
@@ -176,7 +178,7 @@ public class SubastasActivity extends AppCompatActivity {
 
     private View crearCardSubasta(int id, String fecha, String hora, String estado,
                                    String ubicacion, String categoria, String moneda,
-                                   boolean puedePujar, String motivoBloqueo, int subastaActivaId) {
+                                   boolean puedePujar, boolean cumpleRequisitos, boolean abiertaAhora, String motivoBloqueo, int subastaActivaId) {
         LinearLayout card = new LinearLayout(this);
         card.setOrientation(LinearLayout.VERTICAL);
         card.setPadding(dp(16), dp(16), dp(16), dp(18));
@@ -199,14 +201,14 @@ public class SubastasActivity extends AppCompatActivity {
         visual.setLayoutParams(visualParams);
 
         TextView chipLive = new TextView(this);
-        chipLive.setText(estado.toUpperCase() + "  -  SUBASTA #" + id);
+        chipLive.setText((abiertaAhora ? "EN VIVO" : "PROGRAMADA") + "  -  SUBASTA #" + id);
         chipLive.setTextColor(Color.WHITE);
         chipLive.setTextSize(11);
         chipLive.setTypeface(null, android.graphics.Typeface.BOLD);
         chipLive.setLetterSpacing(0.08f);
 
         TextView titleVisual = new TextView(this);
-        titleVisual.setText("Subasta verificada");
+        titleVisual.setText(abiertaAhora ? "Subasta en curso" : "Próxima subasta");
         titleVisual.setTextColor(Color.WHITE);
         titleVisual.setTextSize(23);
         titleVisual.setTypeface(null, android.graphics.Typeface.BOLD);
@@ -288,7 +290,11 @@ public class SubastasActivity extends AppCompatActivity {
 
         // ACCESO
         TextView acceso = new TextView(this);
-        if (puedePujar) {
+        if (!abiertaAhora) {
+            acceso.setText("PROGRAMADA - LAS PUJAS COMIENZAN EL " + fecha + " A LAS " + hora + " (GMT-3)");
+            acceso.setTextColor(Color.parseColor("#7C5E10"));
+            acceso.setBackgroundResource(R.drawable.bg_gold_chip);
+        } else if (puedePujar) {
             acceso.setText("USUARIO HABILITADO PARA PUJAR");
             acceso.setTextColor(Color.parseColor("#166534"));
             acceso.setBackgroundResource(R.drawable.bg_success_chip);
@@ -311,14 +317,15 @@ public class SubastasActivity extends AppCompatActivity {
 
         // BOTÓN
         Button btnVerDetalle = new Button(this);
-        boolean puedeCambiar = !puedePujar && subastaActivaId > 0 && subastaActivaId != id
+        boolean puedeCambiar = abiertaAhora && !puedePujar && subastaActivaId > 0 && subastaActivaId != id
                 && motivoBloqueo.toLowerCase().contains("conectado");
-        btnVerDetalle.setText(puedeCambiar ? "CAMBIAR A ESTA SUBASTA"
-                : (puedePujar ? "ENTRAR AL CATALOGO" : "VER CATALOGO"));
+        btnVerDetalle.setText(!abiertaAhora ? "VER CATALOGO - AUN NO INICIO"
+                : (puedeCambiar ? "CAMBIAR A ESTA SUBASTA"
+                : (puedePujar ? "ENTRAR AL CATALOGO" : "VER CATALOGO")));
         btnVerDetalle.setTextColor(Color.parseColor("#071827"));
         btnVerDetalle.setTextSize(12);
         btnVerDetalle.setTypeface(null, android.graphics.Typeface.BOLD);
-        btnVerDetalle.setBackgroundResource((puedePujar || puedeCambiar)
+        btnVerDetalle.setBackgroundResource((abiertaAhora && (puedePujar || puedeCambiar))
                 ? R.drawable.bg_button_gold : R.drawable.bg_button_outline);
         LinearLayout.LayoutParams btnParams = new LinearLayout.LayoutParams(
                 LinearLayout.LayoutParams.MATCH_PARENT, dp(50));
@@ -331,7 +338,8 @@ public class SubastasActivity extends AppCompatActivity {
                                 + " si todavía no registraste ninguna puja. ¿Querés cambiar ahora?",
                         () -> liberarYEntrar(subastaActivaId, id, categoria));
             } else {
-                abrirSubasta(id, categoria, puedePujar);
+                abrirSubasta(id, categoria, puedePujar, cumpleRequisitos,
+                        abiertaAhora ? "en_curso" : "programada", fecha, hora);
             }
         });
 
@@ -345,11 +353,16 @@ public class SubastasActivity extends AppCompatActivity {
         return card;
     }
 
-    private void abrirSubasta(int id, String categoria, boolean habilitado) {
+    private void abrirSubasta(int id, String categoria, boolean habilitado, boolean cumpleRequisitos,
+                              String estado, String fecha, String hora) {
         Intent intent = new Intent(SubastasActivity.this, AuctionDetailActivity.class);
         intent.putExtra("auctionId", id);
         intent.putExtra("puedePujar", habilitado);
+        intent.putExtra("cumpleRequisitos", cumpleRequisitos);
         intent.putExtra("categoria", categoria);
+        intent.putExtra("estado", estado);
+        intent.putExtra("fecha", fecha);
+        intent.putExtra("hora", hora);
         startActivity(intent);
     }
 
@@ -373,7 +386,8 @@ public class SubastasActivity extends AppCompatActivity {
                         ? connection.getInputStream() : connection.getErrorStream());
                 if (status >= 200 && status < 300) {
                     ultimaRespuestaSubastas = null;
-                    mainHandler.post(() -> abrirSubasta(destinoId, categoria, true));
+                    mainHandler.post(() -> abrirSubasta(destinoId, categoria, true, true,
+                            "en_curso", "", ""));
                 } else {
                     String error = new JSONObject(respuesta).optString("error",
                             "No se pudo abandonar la subasta actual.");

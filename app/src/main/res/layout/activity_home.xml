@@ -404,6 +404,7 @@
                     android:padding="8dp">
 
                     <ImageView
+                        android:id="@+id/imgHomeAvisos"
                         android:layout_width="40dp"
                         android:layout_height="40dp"
                         android:background="@drawable/bg_icon_circle"
@@ -420,6 +421,17 @@
                         android:textColor="#071827"
                         android:textSize="10sp"
                         android:textStyle="bold" />
+
+                    <TextView
+                        android:id="@+id/txtBadgeAvisos"
+                        android:layout_width="wrap_content"
+                        android:layout_height="wrap_content"
+                        android:layout_marginTop="2dp"
+                        android:text=""
+                        android:textColor="#B91C1C"
+                        android:textSize="9sp"
+                        android:textStyle="bold"
+                        android:visibility="gone" />
 
                 </LinearLayout>
 

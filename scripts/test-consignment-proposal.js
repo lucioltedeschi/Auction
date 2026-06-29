@@ -6,6 +6,7 @@ const baseUrl = process.env.API_BASE_URL || "http://127.0.0.1:3000";
 const marker = `REGRESION CONSIGNACION ${Date.now()}`;
 let productId = null;
 let ownerId = null;
+let insurancePolicy = null;
 
 async function api(route, options = {}) {
   const response = await fetch(`${baseUrl}${route}`, {
@@ -37,6 +38,7 @@ async function cleanup() {
     .query(`
       DELETE FROM Photos WHERE producto = @productId;
       DELETE FROM Products WHERE identificador = @productId;
+      DELETE FROM Insurances WHERE nroPoliza = '${insurancePolicy || "__none__"}';
       DELETE FROM Notifications WHERE cliente = @ownerId AND mensaje LIKE @marker;
     `);
 }
@@ -106,6 +108,9 @@ async function run() {
   });
   assert(review.status === 200, "No se pudo enviar la propuesta al cliente", review.body);
   assert(review.body.estadoAprobacion === "propuesta_enviada", "Estado de propuesta incorrecto", review.body);
+  insurancePolicy = review.body.seguro?.nroPoliza || null;
+  assert(insurancePolicy && Number(review.body.seguro.importe) === 1500,
+    "La propuesta no genero la poliza reglamentaria", review.body);
 
   const clientProducts = await api(`/api/clients/${ownerId}/products`);
   const clientProduct = Array.isArray(clientProducts.body)
@@ -114,7 +119,9 @@ async function run() {
     "El cliente no recibio su consignacion", clientProducts.body);
   assert(clientProduct.estadoAprobacion === "propuesta_enviada"
       && Number(clientProduct.precioBasePropuesto) === 1500
-      && Number(clientProduct.comisionPropuesta) === 150,
+      && Number(clientProduct.comisionPropuesta) === 150
+      && clientProduct.seguro === insurancePolicy
+      && Number(clientProduct.seguroImporte) === 1500,
     "La propuesta no llego completa al cliente", clientProduct);
 
   const accept = await api(`/api/products/${productId}/proposal-response`, {
@@ -130,6 +137,7 @@ async function run() {
     productId,
     photosVisibleToAdmin: gallery.body.length,
     proposalDelivered: true,
+    insurancePolicy,
     clientAccepted: true,
   }, null, 2));
 }

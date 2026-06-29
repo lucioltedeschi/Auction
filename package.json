@@ -21,6 +21,7 @@
     "test:live:broadcast": "node scripts/test-ws-bid-broadcast.js",
     "test:auction-finalization": "node scripts/test-auction-finalization.js",
     "test:consignment-proposal": "node scripts/test-consignment-proposal.js",
+    "test:fines-flow": "node scripts/test-fines-flow.js",
     "build:android": "gradlew.bat :app:assembleDebug"
   },
   "repository": {

@@ -18,8 +18,12 @@ import org.json.JSONObject;
 import java.io.BufferedReader;
 import java.io.InputStream;
 import java.io.InputStreamReader;
+import java.io.OutputStream;
 import java.net.HttpURLConnection;
 import java.net.URL;
+import java.nio.charset.StandardCharsets;
+import java.util.ArrayList;
+import java.util.List;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 
@@ -124,6 +128,9 @@ public class FinesActivity extends AppCompatActivity {
         int subastaId = multa.optInt("subastaId", 0);
         double monto = multa.optDouble("monto", 0);
         String pagada = multa.optString("pagada", "no");
+        String moneda = multa.optString("moneda", "pesos");
+        String producto = multa.optString("descripcionCatalogo", "Compra adjudicada");
+        double importeOfertado = multa.optDouble("importeOfertado", monto * 10);
         String fecha = formatearFecha(multa.optString("fechaGeneracion", "-"));
 
         int pad = (int)(18 * getResources().getDisplayMetrics().density);
@@ -150,8 +157,10 @@ public class FinesActivity extends AppCompatActivity {
 
         TextView detalle = new TextView(this);
         detalle.setText(
-                "Subasta: #" + subastaId + "\n" +
-                        "Monto: $" + monto + "\n" +
+                producto + "\n" +
+                        "Subasta: #" + subastaId + "\n" +
+                        "Oferta impaga: " + moneda + " " + String.format("%.2f", importeOfertado) + "\n" +
+                        "Multa reglamentaria (10%): " + moneda + " " + String.format("%.2f", monto) + "\n" +
                         "Estado: " + (pagada.equals("si") ? "Pagada" : "Pendiente") + "\n" +
                         "Fecha: " + fecha
         );
@@ -161,7 +170,7 @@ public class FinesActivity extends AppCompatActivity {
         detalle.setLineSpacing(4, 1.0f);
 
         Button btnPagar = new Button(this);
-        btnPagar.setText(pagada.equals("si") ? "MULTA PAGADA" : "MARCAR COMO PAGADA");
+        btnPagar.setText(pagada.equals("si") ? "MULTA PAGADA" : "PAGAR MULTA");
         btnPagar.setEnabled(!pagada.equals("si"));
         if (pagada.equals("si")) {
             btnPagar.setBackgroundResource(R.drawable.bg_button_outline);
@@ -176,8 +185,9 @@ public class FinesActivity extends AppCompatActivity {
             btnPagar.setOnClickListener(v -> FeedbackDialog.confirmar(
                     this,
                     "Regularizar multa",
-                    "Se registrará el pago de la multa #" + id + " por $" + String.format("%.2f", monto) + ". Al acreditarse, podrás volver a participar en subastas.",
-                    () -> pagarMulta(id)
+                    "La multa equivale al 10% de la oferta impaga. Elegirás un medio verificado en "
+                            + moneda + " para abonar " + String.format("%.2f", monto) + ".",
+                    () -> seleccionarMedioPago(id, monto, moneda)
             ));
         }
 
@@ -188,7 +198,51 @@ public class FinesActivity extends AppCompatActivity {
         return card;
     }
 
-    private void pagarMulta(int fineId) {
+    private void seleccionarMedioPago(int fineId, double monto, String moneda) {
+        executor.execute(() -> {
+            HttpURLConnection connection = null;
+            try {
+                connection = (HttpURLConnection) new URL(ApiConfig.BASE_URL + "/api/clients/"
+                        + userId + "/payment-methods").openConnection();
+                connection.setRequestMethod("GET");
+                connection.setRequestProperty("Accept", "application/json");
+                connection.setRequestProperty("Authorization", "Bearer " + token);
+                if (connection.getResponseCode() != 200) throw new Exception("No se pudieron consultar los medios de pago");
+                JSONArray methods = new JSONArray(leerRespuesta(connection.getInputStream()));
+                List<Integer> ids = new ArrayList<>();
+                List<String> options = new ArrayList<>();
+                for (int i = 0; i < methods.length(); i++) {
+                    JSONObject method = methods.optJSONObject(i);
+                    if (method == null || !"si".equals(method.optString("verificado"))) continue;
+                    String methodCurrency = method.optString("moneda", "pesos");
+                    String type = method.optString("tipo", "");
+                    boolean compatible = moneda.equals(methodCurrency)
+                            && ("pesos".equals(moneda) || "cuenta_bancaria".equals(type)
+                            || ("tarjeta_credito".equals(type) && "si".equals(method.optString("esExtranjera")))
+                            || "cheque_certificado".equals(type));
+                    if (!compatible) continue;
+                    ids.add(method.optInt("id"));
+                    options.add(method.optString("entidad", tipoLegible(type)) + " · " + tipoLegible(type)
+                            + "\n" + methodCurrency.toUpperCase());
+                }
+                mainHandler.post(() -> {
+                    if (ids.isEmpty()) {
+                        FeedbackDialog.error(this, "No tenés medios verificados compatibles con " + moneda + ".");
+                        return;
+                    }
+                    FeedbackDialog.seleccionar(this, "Elegí cómo regularizarla",
+                            "Multa #" + fineId + " · " + moneda + " " + String.format("%.2f", monto),
+                            options, index -> pagarMulta(fineId, ids.get(index)));
+                });
+            } catch (Exception e) {
+                mainHandler.post(() -> FeedbackDialog.error(this, e.getMessage()));
+            } finally {
+                if (connection != null) connection.disconnect();
+            }
+        });
+    }
+
+    private void pagarMulta(int fineId, int medioPagoId) {
         txtMensajeMultas.setText("Registrando pago de multa...");
 
         executor.execute(() -> {
@@ -200,6 +254,13 @@ public class FinesActivity extends AppCompatActivity {
                 connection.setRequestMethod("POST");
                 connection.setRequestProperty("Accept", "application/json");
                 connection.setRequestProperty("Authorization", "Bearer " + token);
+                connection.setRequestProperty("Content-Type", "application/json; charset=UTF-8");
+                connection.setDoOutput(true);
+                JSONObject body = new JSONObject();
+                body.put("medioPagoId", medioPagoId);
+                try (OutputStream output = connection.getOutputStream()) {
+                    output.write(body.toString().getBytes(StandardCharsets.UTF_8));
+                }
 
                 int statusCode = connection.getResponseCode();
                 InputStream inputStream = statusCode >= 200 && statusCode < 300
@@ -234,6 +295,13 @@ public class FinesActivity extends AppCompatActivity {
                 }
             }
         });
+    }
+
+    private String tipoLegible(String type) {
+        if ("cuenta_bancaria".equals(type)) return "Cuenta bancaria";
+        if ("tarjeta_credito".equals(type)) return "Tarjeta de crédito";
+        if ("cheque_certificado".equals(type)) return "Cheque certificado";
+        return "Medio de pago";
     }
 
     private String leerRespuesta(InputStream inputStream) throws Exception {

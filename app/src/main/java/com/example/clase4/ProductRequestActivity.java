@@ -222,10 +222,17 @@ public class ProductRequestActivity extends AppCompatActivity {
 
         String deposito = item.optString("ubicacionDeposito", "");
         String seguro = item.optString("seguro", "");
+        String seguroCompania = item.optString("seguroCompania", "");
+        double seguroImporte = item.optDouble("seguroImporte", 0);
         if ((!deposito.isEmpty() && !"null".equals(deposito)) || (!seguro.isEmpty() && !"null".equals(seguro))) {
             String custodia = "Custodia del bien";
             if (!deposito.isEmpty() && !"null".equals(deposito)) custodia += "\nDeposito: " + deposito;
-            if (!seguro.isEmpty() && !"null".equals(seguro)) custodia += "\nSeguro: " + seguro;
+            if (!seguro.isEmpty() && !"null".equals(seguro)) {
+                custodia += "\nPóliza: " + seguro;
+                if (!seguroCompania.isEmpty() && !"null".equals(seguroCompania)) custodia += "\nCompañía: " + seguroCompania;
+                if (seguroImporte > 0) custodia += "\nCobertura: $" + String.format("%.2f", seguroImporte);
+                custodia += "\nPodés contactar a la aseguradora para solicitar una ampliación de cobertura abonando la diferencia.";
+            }
             card.addView(crearTexto(custodia, "#475569", 13, false));
         }
 

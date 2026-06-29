@@ -51,6 +51,7 @@ public class AuctionDetailActivity extends AppCompatActivity {
     private LinearLayout collapseBody;
     private TextView txtDatosSubasta;
     private TextView txtItemVivo;
+    private TextView txtLiveChip;
     private TextView txtTiempoRestante;
     private TextView txtMejorOfertaVivo;
     private TextView txtPujaMinimaVivo;
@@ -63,6 +64,11 @@ public class AuctionDetailActivity extends AppCompatActivity {
     private int auctionId;
     private int userId;
     private boolean puedePujar;
+    private boolean cumpleRequisitosPuja;
+    private boolean subastaAbiertaAhora;
+    private boolean conexionActivaRegistrada;
+    private String fechaInicioMostrada = "";
+    private String horaInicioMostrada = "";
     private String categoriaSubasta;
     private String token;
     private volatile boolean escuchandoEventos;
@@ -79,6 +85,7 @@ public class AuctionDetailActivity extends AppCompatActivity {
     private final Runnable actualizarRelojesLotes = new Runnable() {
         @Override public void run() {
             boolean hayRelojesActivos = false;
+            if (!subastaAbiertaAhora) return;
             for (Map.Entry<Integer, LoteEnVivo> entry : estadosLotes.entrySet()) {
                 LoteEnVivo lote = entry.getValue();
                 if (!lote.vendido && lote.segundosRestantes > 0) {
@@ -149,6 +156,7 @@ public class AuctionDetailActivity extends AppCompatActivity {
         collapseBody = findViewById(R.id.collapseBody);
         txtDatosSubasta = findViewById(R.id.txtDatosSubasta);
         txtItemVivo = findViewById(R.id.txtItemVivo);
+        txtLiveChip = findViewById(R.id.txtLiveChip);
         txtTiempoRestante = findViewById(R.id.txtTiempoRestante);
         txtMejorOfertaVivo = findViewById(R.id.txtMejorOfertaVivo);
         txtPujaMinimaVivo = findViewById(R.id.txtPujaMinimaVivo);
@@ -169,10 +177,15 @@ public class AuctionDetailActivity extends AppCompatActivity {
 
         auctionId = getIntent().getIntExtra("auctionId", 0);
         puedePujar = getIntent().getBooleanExtra("puedePujar", false);
+        cumpleRequisitosPuja = getIntent().getBooleanExtra("cumpleRequisitos", puedePujar);
+        subastaAbiertaAhora = "en_curso".equals(getIntent().getStringExtra("estado"));
+        fechaInicioMostrada = getIntent().getStringExtra("fecha");
+        horaInicioMostrada = getIntent().getStringExtra("hora");
         categoriaSubasta = getIntent().getStringExtra("categoria");
         if (categoriaSubasta == null) categoriaSubasta = "";
 
         txtTopBarSubasta.setText("SUBASTA #" + auctionId);
+        actualizarEstadoProgramacion();
 
         // Back button
         findViewById(R.id.btnBack).setOnClickListener(v -> finish());
@@ -182,7 +195,10 @@ public class AuctionDetailActivity extends AppCompatActivity {
 
         SharedPreferences prefs2 = getSharedPreferences("sesion", MODE_PRIVATE);
         userId = prefs2.getInt("userId", 0);
-        registrarConexionActiva();
+        if (puedePujar && subastaAbiertaAhora) {
+            registrarConexionActiva();
+            conexionActivaRegistrada = true;
+        }
         cargarTopBarData(userId);
 
         cargarDetalleSubasta();
@@ -200,7 +216,7 @@ public class AuctionDetailActivity extends AppCompatActivity {
         countdownHandler.removeCallbacks(countdownRunnable);
         countdownHandler.removeCallbacks(actualizarRelojesLotes);
         if (conexionEventos != null) conexionEventos.disconnect();
-        liberarConexionActiva();
+        if (conexionActivaRegistrada) liberarConexionActiva();
         super.onDestroy();
     }
 
@@ -214,7 +230,9 @@ public class AuctionDetailActivity extends AppCompatActivity {
                 .build();
         webSocket = webSocketClient.newWebSocket(request, new WebSocketListener() {
             @Override public void onOpen(WebSocket socket, Response response) {
-                mainHandler.post(() -> txtMensajeDetalle.setText("Conexión en vivo activa · importes y relojes se actualizan automáticamente"));
+                mainHandler.post(() -> txtMensajeDetalle.setText(subastaAbiertaAhora
+                        ? "Conexión en vivo activa · importes y relojes se actualizan automáticamente"
+                        : "Catálogo disponible · las pujas se habilitarán al comenzar la subasta"));
             }
 
             @Override public void onMessage(WebSocket socket, String text) {
@@ -226,6 +244,11 @@ public class AuctionDetailActivity extends AppCompatActivity {
                         mainHandler.post(() -> {
                             int[] resumen = actualizarEstadosLotes(lotes);
                             cargarCatalogo();
+                            if (!subastaAbiertaAhora) {
+                                actualizarEstadoProgramacion();
+                                txtMensajeDetalle.setText("Catálogo disponible · las pujas se habilitarán al comenzar la subasta");
+                                return;
+                            }
                             txtItemVivo.setText("Sala sincronizada en tiempo real");
                             txtTiempoRestante.setTextSize(18);
                             txtTiempoRestante.setText("CONECTADO");
@@ -249,7 +272,9 @@ public class AuctionDetailActivity extends AppCompatActivity {
             }
 
             @Override public void onFailure(WebSocket socket, Throwable error, Response response) {
-                mainHandler.post(() -> txtMensajeDetalle.setText("Reconectando pujas en vivo..."));
+                mainHandler.post(() -> txtMensajeDetalle.setText(subastaAbiertaAhora
+                        ? "Reconectando pujas en vivo..."
+                        : "Actualizando el catálogo programado..."));
                 programarReconexionWebSocket();
             }
         });
@@ -443,6 +468,9 @@ public class AuctionDetailActivity extends AppCompatActivity {
 
             // Manejo de subastas pendientes (aún no comienzan)
             if (estado.optBoolean("pendiente", false)) {
+                subastaAbiertaAhora = false;
+                puedePujar = false;
+                actualizarEstadoProgramacion();
                 countdownHandler.removeCallbacks(countdownRunnable);
                 String inicioPend = textoInicioSubasta(estado);
                 txtItemVivo.setText(inicioPend.isEmpty()
@@ -461,6 +489,24 @@ public class AuctionDetailActivity extends AppCompatActivity {
             if (estado.has("error")) {
                 txtItemVivo.setText(estado.optString("error", "Sin estado en vivo"));
                 return;
+            }
+
+            if ("previa".equals(estado.optString("fase", ""))) {
+                subastaAbiertaAhora = false;
+                puedePujar = false;
+                actualizarEstadoProgramacion();
+                return;
+            }
+
+            if (!subastaAbiertaAhora) {
+                subastaAbiertaAhora = true;
+                puedePujar = cumpleRequisitosPuja;
+                actualizarEstadoProgramacion();
+                if (puedePujar && !conexionActivaRegistrada) {
+                    registrarConexionActiva();
+                    conexionActivaRegistrada = true;
+                }
+                cargarCatalogo();
             }
 
             JSONObject itemActual = estado.optJSONObject("itemActual");
@@ -580,6 +626,27 @@ public class AuctionDetailActivity extends AppCompatActivity {
         txtChevron.setText(infoExpanded ? "▲" : "▼");
     }
 
+    private void actualizarEstadoProgramacion() {
+        if (txtLiveChip == null) return;
+        if (subastaAbiertaAhora) {
+            txtLiveChip.setText("● EN VIVO");
+            txtLiveChip.setBackgroundResource(R.drawable.bg_live_chip);
+            txtLiveChip.setTextColor(Color.parseColor("#166534"));
+        } else {
+            txtLiveChip.setText("PROGRAMADA");
+            txtLiveChip.setBackgroundResource(R.drawable.bg_gold_chip);
+            txtLiveChip.setTextColor(Color.parseColor("#071827"));
+            String inicio = ((fechaInicioMostrada == null ? "" : fechaInicioMostrada) + " "
+                    + (horaInicioMostrada == null ? "" : horaInicioMostrada)).trim();
+            txtItemVivo.setText(inicio.isEmpty()
+                    ? "Las pujas se habilitan cuando comience la subasta"
+                    : "Las pujas comienzan el " + inicio + " (GMT-3)");
+            txtTiempoRestante.setText("AÚN NO INICIÓ");
+            txtTiempoRestante.setTextSize(18);
+            txtTiempoRestante.setTextColor(Color.parseColor("#A8872F"));
+        }
+    }
+
     // ── TOP BAR DATA ──────────────────────────────────────────────────────────────
 
     private void cargarTopBarData(int userId) {
@@ -693,6 +760,11 @@ public class AuctionDetailActivity extends AppCompatActivity {
             String subastador = subasta.optString("subastador", "-");
             String capacidad = subasta.optString("capacidadAsistentes", "-");
             categoriaSubasta = categoria;
+            subastaAbiertaAhora = subasta.optBoolean("abiertaAhora", false);
+            fechaInicioMostrada = fecha;
+            horaInicioMostrada = hora;
+            puedePujar = cumpleRequisitosPuja && subastaAbiertaAhora;
+            actualizarEstadoProgramacion();
 
             // Single-line summary always visible in the header
             txtDatosResumen.setText(ubicacion + "  -  " + fecha + "  " + hora);
@@ -707,7 +779,9 @@ public class AuctionDetailActivity extends AppCompatActivity {
                 "Categoría\n" + categoria + "\n\n" +
                 "Subastador\n" + subastador + "\n\n" +
                 "Capacidad\n" + capacidad + " asistentes\n\n" +
-                "Tu acceso\n" + (puedePujar ? "Habilitado para pujar" : "Solo visualizacion")
+                "Tu acceso\n" + (!subastaAbiertaAhora
+                        ? "Catálogo visible · las pujas se habilitan al comenzar"
+                        : (puedePujar ? "Habilitado para pujar" : "Solo visualización"))
             );
         } catch (Exception e) {
             txtDatosResumen.setText("Error cargando datos.");
@@ -759,7 +833,9 @@ public class AuctionDetailActivity extends AppCompatActivity {
             txtMensajeDetalle.setText("No hay ítems cargados para esta subasta.");
             return;
         }
-        txtMensajeDetalle.setText(catalogo.length() + " lotes en catálogo · cada reloj es independiente y se reinicia sólo con una puja de ese lote");
+        txtMensajeDetalle.setText(subastaAbiertaAhora
+                ? catalogo.length() + " lotes en catálogo · cada reloj es independiente y se reinicia sólo con una puja de ese lote"
+                : catalogo.length() + " lotes disponibles para consultar · las pujas comienzan con la apertura de la subasta");
         try {
             for (int i = 0; i < catalogo.length(); i++) {
                 JSONObject item = catalogo.getJSONObject(i);
@@ -823,6 +899,9 @@ public class AuctionDetailActivity extends AppCompatActivity {
         if (vendido.equals("si")) {
             status.setText("FINALIZADO - LOTE #" + itemId);
             status.setTextColor(Color.parseColor("#FECACA"));
+        } else if (!subastaAbiertaAhora) {
+            status.setText("PROGRAMADO · PUJAS DESDE " + fechaInicioMostrada + " " + horaInicioMostrada + " · LOTE #" + itemId);
+            status.setTextColor(Color.parseColor("#FDE68A"));
         } else {
             status.setText("ABIERTO · PUJAS EN VIVO · LOTE #" + itemId);
             status.setTextColor(Color.parseColor("#86EFAC"));
@@ -856,13 +935,12 @@ public class AuctionDetailActivity extends AppCompatActivity {
         visual.addView(subtitle);
 
         ImageView fotoProducto = new ImageView(this);
-        fotoProducto.setScaleType(ImageView.ScaleType.CENTER_CROP);
         fotoProducto.setBackgroundColor(Color.parseColor("#F1F5F9"));
         fotoProducto.setScaleType(ImageView.ScaleType.CENTER);
         fotoProducto.setImageResource(R.drawable.ic_photo_placeholder);
         fotoProducto.setColorFilter(Color.parseColor("#CBD5E1"));
         LinearLayout.LayoutParams fotoParams = new LinearLayout.LayoutParams(
-                LinearLayout.LayoutParams.MATCH_PARENT, dp(180));
+                LinearLayout.LayoutParams.MATCH_PARENT, dp(300));
         fotoParams.setMargins(0, dp(14), 0, 0);
         fotoProducto.setLayoutParams(fotoParams);
         if (productId > 0) cargarFotoProducto(productId, fotoProducto);
@@ -928,7 +1006,9 @@ public class AuctionDetailActivity extends AppCompatActivity {
         timerPanel.setLayoutParams(timerParams);
 
         TextView timerLabel = new TextView(this);
-        timerLabel.setText("TIEMPO RESTANTE DEL LOTE #" + itemId);
+        timerLabel.setText(subastaAbiertaAhora
+                ? "TIEMPO RESTANTE DEL LOTE #" + itemId
+                : "APERTURA DE PUJAS DEL LOTE #" + itemId);
         timerLabel.setTextColor(Color.parseColor("#475569"));
         timerLabel.setTextSize(10);
         timerLabel.setTypeface(null, android.graphics.Typeface.BOLD);
@@ -938,15 +1018,20 @@ public class AuctionDetailActivity extends AppCompatActivity {
         timerValue.setTextSize(28);
         timerValue.setTypeface(null, android.graphics.Typeface.BOLD);
         timerValue.setContentDescription("Tiempo restante del lote " + itemId);
-        actualizarRelojLote(timerValue, estadoVivo);
+        if (subastaAbiertaAhora) actualizarRelojLote(timerValue, estadoVivo);
+        else {
+            timerValue.setText("AÚN NO INICIÓ");
+            timerValue.setTextColor(Color.parseColor("#A8872F"));
+        }
         relojesLotes.put(itemId, timerValue);
 
         TextView timerHelp = new TextView(this);
         String duracion = estadoVivo.duracionMinutos > 0
                 ? estadoVivo.duracionMinutos + " min"
                 : "la duración configurada";
-        timerHelp.setText("El reloj parte de " + duracion
-                + " al abrirse el lote y vuelve a ese valor después de cada puja válida.");
+        timerHelp.setText(subastaAbiertaAhora
+                ? "El reloj parte de " + duracion + " al abrirse el lote y vuelve a ese valor después de cada puja válida."
+                : "Podés revisar el catálogo ahora. El botón de puja se habilita automáticamente al comenzar la subasta.");
         timerHelp.setTextColor(Color.parseColor("#64748B"));
         timerHelp.setTextSize(11);
         timerHelp.setLineSpacing(dp(2), 1f);
@@ -1028,7 +1113,7 @@ public class AuctionDetailActivity extends AppCompatActivity {
         security.setLayoutParams(securityParams);
 
         Button btnPujar = new Button(this);
-        if (puedePujar && !vendido.equals("si")) {
+        if (subastaAbiertaAhora && puedePujar && !vendido.equals("si")) {
             btnPujar.setText("PUJAR POR ESTE LOTE");
             btnPujar.setBackgroundResource(R.drawable.bg_button_gold);
             btnPujar.setTextColor(Color.parseColor("#071827"));
@@ -1045,7 +1130,8 @@ public class AuctionDetailActivity extends AppCompatActivity {
                 startActivity(intent);
             });
         } else {
-            btnPujar.setText(vendido.equals("si") ? "ADJUDICADO" : "SOLO VER");
+            btnPujar.setText(vendido.equals("si") ? "ADJUDICADO"
+                    : (!subastaAbiertaAhora ? "PUJAS DISPONIBLES AL COMENZAR" : "SOLO VER"));
             btnPujar.setBackgroundResource(R.drawable.bg_button_outline);
             btnPujar.setTextColor(Color.parseColor(vendido.equals("si") ? "#64748B" : "#071827"));
             btnPujar.setEnabled(false);
@@ -1092,7 +1178,9 @@ public class AuctionDetailActivity extends AppCompatActivity {
         JSONArray ofertas = lote.ultimasPujas;
         if (ofertas == null || ofertas.length() == 0) {
             TextView empty = new TextView(this);
-            empty.setText("Todavía no hay pujas. La primera oferta puede ser la tuya.");
+            empty.setText(subastaAbiertaAhora
+                    ? "Todavía no hay pujas. La primera oferta puede ser la tuya."
+                    : "La subasta todavía no comenzó. El historial se actualizará en tiempo real desde la apertura.");
             empty.setTextColor(Color.parseColor("#D7E3EF"));
             empty.setTextSize(12);
             empty.setPadding(0, dp(8), 0, 0);

@@ -158,11 +158,20 @@ BEGIN
         [identificador] int IDENTITY(1,1) NOT NULL,
         [cliente] int NOT NULL,
         [subasta] int NOT NULL,
+        [venta] int NULL,
         [monto] decimal(18, 2) NOT NULL,
         [pagada] varchar(2) NOT NULL CONSTRAINT [DF__Fines__pagada__3F115E1A] DEFAULT ('no'),
         [fechaGeneracion] datetime NOT NULL CONSTRAINT [DF__Fines__fechaGene__40058253] DEFAULT (DATEADD(HOUR,-3,SYSUTCDATETIME())),
         CONSTRAINT [pk_fines] PRIMARY KEY ([identificador])
     );
+END
+GO
+
+IF OBJECT_ID('dbo.fk_fines_auctionRecords', 'F') IS NULL
+BEGIN
+    ALTER TABLE [dbo].[Fines]
+    ADD CONSTRAINT [fk_fines_auctionRecords] FOREIGN KEY ([venta])
+    REFERENCES [dbo].[AuctionRecords] ([identificador]);
 END
 GO
 
