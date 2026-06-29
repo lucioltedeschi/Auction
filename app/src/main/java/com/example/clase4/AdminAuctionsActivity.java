@@ -27,6 +27,7 @@ import java.nio.charset.StandardCharsets;
 import java.text.SimpleDateFormat;
 import java.util.Date;
 import java.util.Locale;
+import java.util.TimeZone;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 
@@ -61,7 +62,7 @@ public class AdminAuctionsActivity extends AppCompatActivity {
     protected void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
         setContentView(R.layout.activity_admin_auctions);
-        SystemBars.configure(this, "#071827", false, "#F3F0E8", true);
+        SystemBars.configure(this, "#F3F0E8", true, "#F3F0E8", true);
 
         token = getSharedPreferences("sesion", MODE_PRIVATE).getString("token", "");
         locationField = findViewById(R.id.edtAdminAuctionLocation);
@@ -112,7 +113,9 @@ public class AdminAuctionsActivity extends AppCompatActivity {
         saveButton.setText("CREAR SUBASTA Y CATÁLOGO");
         cancelButton.setVisibility(View.GONE);
         locationField.setText("");
-        dateField.setText(new SimpleDateFormat("yyyy-MM-dd", Locale.US).format(new Date()));
+        SimpleDateFormat argentinaDate = new SimpleDateFormat("yyyy-MM-dd", Locale.US);
+        argentinaDate.setTimeZone(TimeZone.getTimeZone("America/Argentina/Buenos_Aires"));
+        dateField.setText(argentinaDate.format(new Date()));
         timeField.setText("20:00");
         capacityField.setText("120");
         durationField.setText("180");
@@ -214,8 +217,7 @@ public class AdminAuctionsActivity extends AppCompatActivity {
 
         TextView title = label("#" + auction.optInt("id") + " · " + auction.optString("ubicacion"), 16, true, "#071827");
         card.addView(title);
-        String time = auction.optString("hora", "");
-        if (time.length() > 5) time = time.substring(0, 5);
+        String time = formatTime(auction.optString("hora", ""));
         String details = formatDate(auction.optString("fecha")) + " · " + time
                 + "\n" + auction.optString("estado").toUpperCase(Locale.ROOT)
                 + " · " + auction.optString("categoria") + " · " + auction.optString("moneda")
@@ -236,8 +238,8 @@ public class AdminAuctionsActivity extends AppCompatActivity {
         actionsParams.setMargins(0, dp(10), 0, 0);
         actions.setLayoutParams(actionsParams);
 
-        Button edit = actionButton("EDITAR", R.drawable.bg_button_gold, "#071827");
-        Button delete = actionButton("ELIMINAR", R.drawable.bg_button_outline, "#991B1B");
+        Button edit = actionButton("Editar", R.drawable.bg_button_gold, "#071827", R.drawable.ic_action_edit);
+        Button delete = actionButton("Eliminar", R.drawable.bg_button_outline, "#991B1B", R.drawable.ic_action_delete);
         edit.setOnClickListener(v -> editAuction(auction));
         delete.setOnClickListener(v -> confirmDelete(auction));
         actions.addView(edit);
@@ -246,12 +248,21 @@ public class AdminAuctionsActivity extends AppCompatActivity {
         return card;
     }
 
-    private Button actionButton(String text, int background, String textColor) {
+    private Button actionButton(String text, int background, String textColor, int icon) {
         Button button = new Button(this);
         button.setText(text);
         button.setTextSize(11);
         button.setTextColor(Color.parseColor(textColor));
         button.setBackgroundResource(background);
+        button.setAllCaps(false);
+        button.setTypeface(null, android.graphics.Typeface.BOLD);
+        button.setGravity(android.view.Gravity.CENTER);
+        button.setCompoundDrawablesWithIntrinsicBounds(icon, 0, 0, 0);
+        button.setCompoundDrawablePadding(dp(6));
+        button.setMinHeight(0);
+        button.setMinWidth(0);
+        button.setPadding(dp(10), 0, dp(10), 0);
+        button.setStateListAnimator(null);
         LinearLayout.LayoutParams params = new LinearLayout.LayoutParams(0, dp(46), 1);
         params.setMargins(dp(3), 0, dp(3), 0);
         button.setLayoutParams(params);
@@ -275,8 +286,7 @@ public class AdminAuctionsActivity extends AppCompatActivity {
         cancelButton.setVisibility(View.VISIBLE);
         locationField.setText(auction.optString("ubicacion"));
         dateField.setText(rawDate(auction.optString("fecha")));
-        String time = auction.optString("hora", "20:00");
-        timeField.setText(time.length() >= 5 ? time.substring(0, 5) : time);
+        timeField.setText(formatTime(auction.optString("hora", "20:00")));
         capacityField.setText(String.valueOf(auction.optInt("capacidadAsistentes", 120)));
         durationField.setText(String.valueOf(auction.optInt("duracionItemMinutos", 180)));
         select(stateSpinner, states, auction.optString("estado"));
@@ -376,6 +386,17 @@ public class AdminAuctionsActivity extends AppCompatActivity {
         String raw = rawDate(value);
         if (raw.length() != 10) return raw;
         return raw.substring(8, 10) + "/" + raw.substring(5, 7) + "/" + raw.substring(0, 4);
+    }
+
+    private String formatTime(String value) {
+        if (value == null || value.trim().isEmpty()) return "";
+        String raw = value.trim();
+        int separator = raw.indexOf('T');
+        if (separator >= 0 && raw.length() >= separator + 6) {
+            return raw.substring(separator + 1, separator + 6);
+        }
+        if (raw.matches("\\d{2}:\\d{2}.*")) return raw.substring(0, 5);
+        return raw;
     }
 
     private int dp(int value) {

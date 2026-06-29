@@ -21,6 +21,8 @@ const ACTIVE_AUCTION_TTL_MS = 4 * 60 * 60 * 1000;
 const activeAuctionSessions = new Map();
 let wss;
 const COMPANY_CLIENT_ID = Number(process.env.COMPANY_CLIENT_ID || 9000007);
+const ARGENTINA_TIME_ZONE = "America/Argentina/Buenos_Aires";
+const SQL_NOW_ARGENTINA = "DATEADD(HOUR, -3, SYSUTCDATETIME())";
 
 const ESTADOS_CONSIGNACION = {
   PENDIENTE: "pendiente_inspeccion",
@@ -60,6 +62,23 @@ function estadoConsignacionLegible(estado) {
   };
 
   return textos[estado] || estado || "Sin estado";
+}
+
+function fechaHoraArgentinaISO(fecha = new Date()) {
+  const partes = new Intl.DateTimeFormat("en-CA", {
+    timeZone: ARGENTINA_TIME_ZONE,
+    year: "numeric",
+    month: "2-digit",
+    day: "2-digit",
+    hour: "2-digit",
+    minute: "2-digit",
+    second: "2-digit",
+    hourCycle: "h23",
+  }).formatToParts(fecha).reduce((acc, parte) => {
+    acc[parte.type] = parte.value;
+    return acc;
+  }, {});
+  return `${partes.year}-${partes.month}-${partes.day}T${partes.hour}:${partes.minute}:${partes.second}-03:00`;
 }
 
 async function registrarCompraEmpresaSinPujas(pool, itemId, auctionId) {
@@ -172,12 +191,24 @@ async function cerrarSubastaSiSinPendientes(pool, auctionId) {
 
   if (restantesResult.recordset[0].pendientes > 0) return false;
 
-  await pool
+  const cierre = await pool
     .request()
     .input("auctionId", sql.Int, auctionId)
-    .query("UPDATE Auctions SET estado = 'cerrada' WHERE identificador = @auctionId AND estado != 'cerrada'");
+    .query(`
+      UPDATE Auctions
+      SET estado = 'cerrada'
+      WHERE identificador = @auctionId AND estado NOT IN ('cerrada', 'cancelada')
+    `);
 
-  console.log(`[AUCTION-CLOSE] Subasta ${auctionId} marcada como cerrada sin items pendientes.`);
+  const sesionesLiberadas = liberarSesionesDeSubasta(auctionId);
+  emitirEventoSubasta(auctionId, {
+    tipo: "auction-finished",
+    motivo: "todos-los-lotes-finalizados",
+    estado: "cerrada",
+    sesionesLiberadas,
+  });
+
+  console.log(`[AUCTION-CLOSE] Subasta ${auctionId} cerrada; sesiones liberadas=${sesionesLiberadas}; actualizada=${cierre.rowsAffected[0] || 0}.`);
   return true;
 }
 
@@ -188,6 +219,32 @@ function limpiarSesionesActivas() {
       activeAuctionSessions.delete(clienteId);
     }
   }
+}
+
+function liberarSesionesDeSubasta(auctionId) {
+  const subasta = Number(auctionId);
+  let liberadas = 0;
+  for (const [clienteId, sesion] of activeAuctionSessions.entries()) {
+    if (sesion && Number(sesion.auctionId) === subasta) {
+      activeAuctionSessions.delete(clienteId);
+      liberadas += 1;
+    }
+  }
+  return liberadas;
+}
+
+async function sanearSesionActiva(pool, clienteId) {
+  const sesion = obtenerSesionActiva(clienteId);
+  if (!sesion) return null;
+  const result = await pool.request()
+    .input("auctionId", sql.Int, sesion.auctionId)
+    .query("SELECT estado FROM Auctions WHERE identificador=@auctionId");
+  const estado = result.recordset[0]?.estado;
+  if (!["programada", "abierta", "en_curso"].includes(estado)) {
+    liberarSesionActiva(clienteId, sesion.auctionId);
+    return null;
+  }
+  return sesion;
 }
 
 function obtenerSesionActiva(clienteId) {
@@ -212,7 +269,7 @@ function registrarSesionActiva(clienteId, auctionId) {
 
   activeAuctionSessions.set(cliente, {
     auctionId: subasta,
-    updatedAt: new Date().toISOString(),
+    updatedAt: fechaHoraArgentinaISO(),
     expiresAt: Date.now() + ACTIVE_AUCTION_TTL_MS,
   });
 
@@ -235,7 +292,7 @@ async function obtenerCatalogoTiempoReal(pool, auctionId) {
            ci.precioBase, ISNULL(MAX(b.importe), ci.precioBase) AS mejorOferta,
            COUNT(b.identificador) AS cantidadPujas, MAX(b.fechaHora) AS ultimaPuja,
            a.duracionItemMinutos,
-           DATEDIFF(SECOND, GETDATE(), DATEADD(MINUTE, a.duracionItemMinutos,
+           DATEDIFF(SECOND, ${SQL_NOW_ARGENTINA}, DATEADD(MINUTE, a.duracionItemMinutos,
              COALESCE(MAX(b.fechaHora),
                CAST(CONVERT(varchar(10), a.fecha, 23) + ' ' + CONVERT(varchar(8), a.hora, 108) AS DATETIME)
              ))) AS segundosRestantes
@@ -286,7 +343,7 @@ async function obtenerCatalogoTiempoReal(pool, auctionId) {
 
 function emitirEventoSubasta(auctionId, evento) {
   if (!wss) return;
-  const mensaje = JSON.stringify({ ...evento, subastaId: Number(auctionId), fechaHora: new Date().toISOString() });
+  const mensaje = JSON.stringify({ ...evento, subastaId: Number(auctionId), fechaHora: fechaHoraArgentinaISO() });
   for (const client of wss.clients) {
     if (client.readyState === WebSocket.OPEN && Number(client.auctionId) === Number(auctionId)) {
       client.send(mensaje);
@@ -310,7 +367,7 @@ function crearTokenDemo(usuario) {
     documento: usuario.documento,
     categoria: usuario.categoria,
     rol: usuario.esAdmin ? "empleado" : "cliente",
-    iat: new Date().toISOString(),
+    iat: fechaHoraArgentinaISO(),
   };
 
   return Buffer.from(JSON.stringify(payload))
@@ -413,12 +470,12 @@ async function obtenerEstadoVivo(pool, auctionId) {
         --   - Antes de iniciar:     desde ahora hasta la hora de inicio (sin duración)
         CASE
           WHEN a.estado = 'en_curso' AND COUNT(b.identificador) > 0 THEN
-            DATEDIFF(SECOND, GETDATE(),
+            DATEDIFF(SECOND, ${SQL_NOW_ARGENTINA},
               DATEADD(MINUTE, a.duracionItemMinutos, MAX(b.fechaHora)))
           WHEN a.estado = 'en_curso' AND COUNT(b.identificador) = 0 THEN
             NULL
           ELSE
-            DATEDIFF(SECOND, GETDATE(), CAST(CONVERT(varchar(10), a.fecha, 23) + ' ' + CONVERT(varchar(8), a.hora, 108) AS DATETIME))
+            DATEDIFF(SECOND, ${SQL_NOW_ARGENTINA}, CAST(CONVERT(varchar(10), a.fecha, 23) + ' ' + CONVERT(varchar(8), a.hora, 108) AS DATETIME))
         END AS segundosRestantes
       FROM Auctions a
       INNER JOIN Catalogs c
@@ -501,6 +558,7 @@ async function obtenerEstadoVivo(pool, auctionId) {
     pujaMaxima: limites.pujaMaxima === null ? null : Number(limites.pujaMaxima.toFixed(2)),
     segundosRestantes: segundos,
     duracionItemMinutos: estado.duracionItemMinutos,
+    zonaHoraria: ARGENTINA_TIME_ZONE,
     mecanismoTiempoReal: "WebSocket",
     eventosUrl: `/ws?auctionId=${auctionId}`,
   };
@@ -633,8 +691,147 @@ async function cerrarItemAutomatico(pool, itemId, auctionId) {
   }
 }
 
+async function cerrarItemAtomico(pool, itemId, auctionId) {
+  const transaction = new sql.Transaction(pool);
+  let resultadoCierre;
+  try {
+    await transaction.begin(sql.ISOLATION_LEVEL.SERIALIZABLE);
+    const itemResult = await new sql.Request(transaction)
+      .input("itemId", sql.Int, itemId)
+      .input("auctionId", sql.Int, auctionId)
+      .query(`
+        SELECT ci.identificador, ci.precioBase, ci.comision, ci.vendido,
+               ci.producto AS productoId, p.duenio AS duenioOriginal,
+               p.descripcionCatalogo, a.moneda
+        FROM CatalogItems ci WITH (UPDLOCK, HOLDLOCK)
+        INNER JOIN Catalogs c ON c.identificador=ci.catalogo
+        INNER JOIN Auctions a ON a.identificador=c.subasta
+        INNER JOIN Products p ON p.identificador=ci.producto
+        WHERE ci.identificador=@itemId AND a.identificador=@auctionId
+      `);
+    if (!itemResult.recordset.length || itemResult.recordset[0].vendido === "si") {
+      await transaction.rollback();
+      return false;
+    }
+    const item = itemResult.recordset[0];
+    const winnerResult = await new sql.Request(transaction)
+      .input("itemId", sql.Int, itemId)
+      .query(`
+        SELECT TOP 1 b.identificador AS bidId, b.importe, at.cliente
+        FROM Bids b
+        INNER JOIN Attendees at ON at.identificador=b.asistente
+        WHERE b.item=@itemId
+        ORDER BY b.importe DESC, b.fechaHora ASC, b.identificador ASC
+      `);
+
+    if (!winnerResult.recordset.length) {
+      const empresa = await new sql.Request(transaction)
+        .input("empresaId", sql.Int, COMPANY_CLIENT_ID)
+        .query(`
+          SELECT c.identificador FROM Clients c
+          INNER JOIN Owners o ON o.identificador=c.identificador
+          INNER JOIN Users u ON u.identificador=c.identificador
+          WHERE c.identificador=@empresaId AND c.admitido='si' AND u.estado='activo'
+        `);
+      if (!empresa.recordset.length) {
+        throw new Error(`No existe el cliente empresa activo COMPANY_CLIENT_ID=${COMPANY_CLIENT_ID}`);
+      }
+      await new sql.Request(transaction)
+        .input("subasta", sql.Int, auctionId)
+        .input("duenio", sql.Int, item.duenioOriginal)
+        .input("producto", sql.Int, item.productoId)
+        .input("cliente", sql.Int, COMPANY_CLIENT_ID)
+        .input("importe", sql.Decimal(18, 2), Math.max(Number(item.precioBase), 0.01))
+        .input("comision", sql.Decimal(18, 2), Math.max(Number(item.comision), 0.02))
+        .query(`
+          IF NOT EXISTS (SELECT 1 FROM AuctionRecords WHERE subasta=@subasta AND producto=@producto)
+          INSERT INTO AuctionRecords
+            (subasta, duenio, producto, cliente, medioPago, importe, comision, costoEnvio,
+             estadoPago, fechaVenta, retiroPersonal)
+          VALUES
+            (@subasta, @duenio, @producto, @cliente, NULL, @importe, @comision, 0,
+             'pagado', ${SQL_NOW_ARGENTINA}, 'no')
+        `);
+      await new sql.Request(transaction)
+        .input("producto", sql.Int, item.productoId)
+        .input("empresa", sql.Int, COMPANY_CLIENT_ID)
+        .query("UPDATE Products SET duenio=@empresa, disponible='no' WHERE identificador=@producto");
+      resultadoCierre = { sinPujas: true, item };
+    } else {
+      const ganador = winnerResult.recordset[0];
+      const medioResult = await new sql.Request(transaction)
+        .input("cliente", sql.Int, ganador.cliente)
+        .input("moneda", sql.VarChar, item.moneda)
+        .query(`
+          SELECT TOP 1 identificador FROM PaymentMethods
+          WHERE cliente=@cliente AND verificado='si' AND moneda=@moneda
+            AND (@moneda='pesos' OR tipo='cuenta_bancaria'
+              OR (tipo='tarjeta_credito' AND esExtranjera='si') OR tipo='cheque_certificado')
+          ORDER BY identificador
+        `);
+      const medioPagoId = medioResult.recordset[0]?.identificador || null;
+      await new sql.Request(transaction).input("itemId", sql.Int, itemId)
+        .query("UPDATE Bids SET ganador='no' WHERE item=@itemId");
+      await new sql.Request(transaction).input("bidId", sql.Int, ganador.bidId)
+        .query("UPDATE Bids SET ganador='si' WHERE identificador=@bidId");
+      await new sql.Request(transaction)
+        .input("subasta", sql.Int, auctionId)
+        .input("duenio", sql.Int, item.duenioOriginal)
+        .input("producto", sql.Int, item.productoId)
+        .input("cliente", sql.Int, ganador.cliente)
+        .input("medioPago", sql.Int, medioPagoId)
+        .input("importe", sql.Decimal(18, 2), Number(ganador.importe))
+        .input("comision", sql.Decimal(18, 2), Math.max(Number(item.comision), 0.02))
+        .query(`
+          IF NOT EXISTS (SELECT 1 FROM AuctionRecords WHERE subasta=@subasta AND producto=@producto)
+          INSERT INTO AuctionRecords
+            (subasta, duenio, producto, cliente, medioPago, importe, comision, costoEnvio,
+             estadoPago, fechaVenta, retiroPersonal)
+          VALUES
+            (@subasta, @duenio, @producto, @cliente, @medioPago, @importe, @comision, 0,
+             'pendiente', ${SQL_NOW_ARGENTINA}, 'no')
+        `);
+      await new sql.Request(transaction)
+        .input("producto", sql.Int, item.productoId)
+        .input("ganador", sql.Int, ganador.cliente)
+        .query("UPDATE Products SET duenio=@ganador, disponible='no' WHERE identificador=@producto");
+      resultadoCierre = { sinPujas: false, item, ganador, medioPagoId };
+    }
+    await new sql.Request(transaction).input("itemId", sql.Int, itemId)
+      .query("UPDATE CatalogItems SET subastado='si', vendido='si' WHERE identificador=@itemId");
+    await transaction.commit();
+  } catch (error) {
+    if (!transaction._aborted) await transaction.rollback().catch(() => {});
+    console.error(`[AUTO-CLOSE] No se pudo cerrar atomicamente el item ${itemId}:`, error.message);
+    throw error;
+  }
+
+  if (resultadoCierre.sinPujas) {
+    await registrarAviso(pool, resultadoCierre.item.duenioOriginal, "Lote adquirido por la empresa",
+      `${resultadoCierre.item.descripcionCatalogo} finalizo sin pujas. La empresa lo compro por el precio base de ${Number(resultadoCierre.item.precioBase).toFixed(2)}.`);
+  } else {
+    await registrarAviso(pool, resultadoCierre.ganador.cliente, "Compra adjudicada",
+      `Ganaste ${resultadoCierre.item.descripcionCatalogo} por ${Number(resultadoCierre.ganador.importe).toFixed(2)}. Elegi un medio compatible y paga dentro de 72 horas.`);
+    await registrarAviso(pool, resultadoCierre.item.duenioOriginal, "Lote vendido",
+      `${resultadoCierre.item.descripcionCatalogo} fue adjudicado por ${Number(resultadoCierre.ganador.importe).toFixed(2)}.`);
+  }
+  await cerrarSubastaSiSinPendientes(pool, auctionId);
+  await emitirCatalogoSubasta(auctionId, "lote-cerrado");
+  console.log(`[AUTO-CLOSE] Item ${itemId} cerrado atomicamente; sinPujas=${resultadoCierre.sinPujas}.`);
+  return true;
+}
+
 function categoriaValida(categoria) {
   return ["comun", "especial", "plata", "oro", "platino"].includes(categoria);
+}
+
+function fechaHoraSubastaValida(fecha, hora) {
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(String(fecha || "")) || !/^\d{2}:\d{2}$/.test(String(hora || ""))) {
+    return false;
+  }
+  const valor = new Date(`${fecha}T${hora}:00-03:00`);
+  if (Number.isNaN(valor.getTime())) return false;
+  return fechaHoraArgentinaISO(valor).slice(0, 16) === `${fecha}T${hora}`;
 }
 
 function normalizarSiNo(valor, valorPorDefecto = "no") {
@@ -655,6 +852,19 @@ async function cerrarLotesVencidosSimultaneos() {
   procesandoCierresSimultaneos = true;
   try {
     const pool = await poolPromise;
+
+    await pool.request().query(`
+      UPDATE Auctions
+      SET estado='en_curso'
+      WHERE estado IN ('programada','abierta')
+        AND CAST(CONVERT(varchar(10), fecha, 23) + ' ' + CONVERT(varchar(8), hora, 108) AS DATETIME) <= ${SQL_NOW_ARGENTINA}
+        AND EXISTS (
+          SELECT 1 FROM Catalogs c
+          INNER JOIN CatalogItems ci ON ci.catalogo=c.identificador
+          WHERE c.subasta=Auctions.identificador AND ci.vendido='no'
+        )
+    `);
+
     const vencidos = await pool.request().query(`
       SELECT ci.identificador AS itemId, a.identificador AS auctionId
       FROM CatalogItems ci
@@ -666,10 +876,23 @@ async function cerrarLotesVencidosSimultaneos() {
       HAVING DATEADD(MINUTE, a.duracionItemMinutos,
         COALESCE(MAX(b.fechaHora),
           CAST(CONVERT(varchar(10), a.fecha, 23) + ' ' + CONVERT(varchar(8), a.hora, 108) AS DATETIME)
-        )) <= GETDATE()
+        )) <= ${SQL_NOW_ARGENTINA}
     `);
     for (const item of vencidos.recordset) {
-      await cerrarItemAutomatico(pool, Number(item.itemId), Number(item.auctionId));
+      await cerrarItemAtomico(pool, Number(item.itemId), Number(item.auctionId));
+    }
+
+    const subastasCompletas = await pool.request().query(`
+      SELECT a.identificador AS auctionId
+      FROM Auctions a
+      INNER JOIN Catalogs c ON c.subasta=a.identificador
+      INNER JOIN CatalogItems ci ON ci.catalogo=c.identificador
+      WHERE a.estado IN ('programada','abierta','en_curso')
+      GROUP BY a.identificador
+      HAVING SUM(CASE WHEN ci.vendido='no' THEN 1 ELSE 0 END)=0
+    `);
+    for (const subasta of subastasCompletas.recordset) {
+      await cerrarSubastaSiSinPendientes(pool, Number(subasta.auctionId));
     }
   } catch (error) {
     console.error("[REALTIME] Error verificando cierres simultáneos:", error.message);
@@ -704,12 +927,13 @@ app.get("/api/health", (req, res) => {
 app.get("/api/test", async (req, res) => {
   try {
     const pool = await poolPromise;
-    const result = await pool.request().query("SELECT GETDATE() AS fechaServidor");
+    const result = await pool.request().query(`SELECT ${SQL_NOW_ARGENTINA} AS fechaServidor`);
 
     res.status(200).json({
       ok: true,
       mensaje: "API conectada correctamente",
       fechaServidor: result.recordset[0].fechaServidor,
+      zonaHoraria: "America/Argentina/Buenos_Aires (GMT-3)",
     });
   } catch (err) {
     res.status(500).json({
@@ -1209,6 +1433,7 @@ app.post("/api/clients/:clientId/active-auction", async (req, res) => {
     }
 
     const pool = await poolPromise;
+    await sanearSesionActiva(pool, clientId);
     const clientResult = await pool
       .request()
       .input("clientId", sql.Int, clientId)
@@ -1365,7 +1590,7 @@ app.get("/api/clients/:clientId/auctions", async (req, res) => {
           (
             SELECT COUNT(*) FROM AuctionRecords ar
             WHERE ar.cliente=c.identificador AND ar.estadoPago='pendiente'
-              AND DATEADD(HOUR,72,ar.fechaVenta)<=GETDATE()
+              AND DATEADD(HOUR,72,ar.fechaVenta)<=${SQL_NOW_ARGENTINA}
           ) AS comprasVencidas
         FROM Clients c
         INNER JOIN Users u
@@ -1380,7 +1605,7 @@ app.get("/api/clients/:clientId/auctions", async (req, res) => {
     }
 
     const cliente = clientResult.recordset[0];
-    const sesionActiva = obtenerSesionActiva(clientId);
+    const sesionActiva = await sanearSesionActiva(pool, clientId);
 
     const auctionsResult = await pool.request().query(`
       SELECT
@@ -1712,7 +1937,7 @@ app.get("/api/auctions/:auctionId/events", async (req, res) => {
           SET estado = 'en_curso'
           WHERE identificador = @auctionId
             AND estado IN ('programada', 'abierta')
-            AND CAST(CONVERT(varchar(10), fecha, 23) + ' ' + CONVERT(varchar(8), hora, 108) AS DATETIME) <= GETDATE()
+            AND CAST(CONVERT(varchar(10), fecha, 23) + ' ' + CONVERT(varchar(8), hora, 108) AS DATETIME) <= ${SQL_NOW_ARGENTINA}
         `);
 
       let estado = await obtenerEstadoVivo(pool, req.params.auctionId);
@@ -1725,7 +1950,9 @@ app.get("/api/auctions/:auctionId/events", async (req, res) => {
           .query(`
             SELECT estado, fecha, hora,
                    CONVERT(varchar(10), fecha, 23) AS fechaInicioStr,
-                   CONVERT(varchar(5),  hora, 108) AS horaInicioStr
+                   CONVERT(varchar(5),  hora, 108) AS horaInicioStr,
+                   DATEDIFF(SECOND, ${SQL_NOW_ARGENTINA},
+                     CAST(CONVERT(varchar(10), fecha, 23) + ' ' + CONVERT(varchar(8), hora, 108) AS DATETIME)) AS segundosHastaInicio
             FROM Auctions
             WHERE identificador = @auctionId
           `);
@@ -1737,19 +1964,17 @@ app.get("/api/auctions/:auctionId/events", async (req, res) => {
         }
 
         const subasta = auctionCheck.recordset[0];
-        const fechaInicio = new Date(subasta.fecha + ' ' + subasta.hora);
-        const ahora = new Date();
-
         // If auction hasn't started yet, send "pending" instead of "finalizada"
-        if (subasta.estado === 'programada' && fechaInicio > ahora) {
+        if (subasta.estado === 'programada' && Number(subasta.segundosHastaInicio) > 0) {
           res.write("event: live-state\n");
           res.write(`data: ${JSON.stringify({
             pendiente: true,
             estado: "programada",
             subastaId: Number(req.params.auctionId),
-            proximoInicio: fechaInicio.toISOString(),
+            proximoInicio: `${subasta.fechaInicioStr}T${subasta.horaInicioStr}:00-03:00`,
             fechaInicio: subasta.fechaInicioStr,
-            horaInicio: subasta.horaInicioStr
+            horaInicio: subasta.horaInicioStr,
+            zonaHoraria: ARGENTINA_TIME_ZONE
           })}\n\n`);
         } else {
           // Auction has truly ended
@@ -1818,7 +2043,7 @@ app.get("/api/auctions/:auctionId/catalog", async (req, res) => {
           ISNULL(MAX(b.importe), ci.precioBase) AS mejorOferta,
           COUNT(b.identificador) AS cantidadPujas,
           a.duracionItemMinutos,
-          DATEDIFF(SECOND, GETDATE(), DATEADD(MINUTE, a.duracionItemMinutos,
+          DATEDIFF(SECOND, ${SQL_NOW_ARGENTINA}, DATEADD(MINUTE, a.duracionItemMinutos,
             COALESCE(MAX(b.fechaHora),
               CAST(CONVERT(varchar(10), a.fecha, 23) + ' ' + CONVERT(varchar(8), a.hora, 108) AS DATETIME)
             ))) AS segundosRestantes,
@@ -1996,7 +2221,7 @@ async function crearPuja(req, res) {
           (
             SELECT COUNT(*) FROM AuctionRecords ar
             WHERE ar.cliente=c.identificador AND ar.estadoPago='pendiente'
-              AND DATEADD(HOUR,72,ar.fechaVenta)<=GETDATE()
+              AND DATEADD(HOUR,72,ar.fechaVenta)<=${SQL_NOW_ARGENTINA}
           ) AS comprasVencidas
         FROM Clients c
         INNER JOIN Users u
@@ -2050,7 +2275,7 @@ async function crearPuja(req, res) {
           a.categoria,
           a.moneda,
           a.duracionItemMinutos,
-          DATEDIFF(SECOND, GETDATE(), DATEADD(MINUTE, a.duracionItemMinutos,
+          DATEDIFF(SECOND, ${SQL_NOW_ARGENTINA}, DATEADD(MINUTE, a.duracionItemMinutos,
             COALESCE((SELECT MAX(bb.fechaHora) FROM Bids bb WHERE bb.item=ci.identificador),
               CAST(CONVERT(varchar(10), a.fecha, 23) + ' ' + CONVERT(varchar(8), a.hora, 108) AS DATETIME)
             ))) AS segundosRestantes
@@ -2089,6 +2314,7 @@ async function crearPuja(req, res) {
       });
     }
 
+    await sanearSesionActiva(pool, clienteId);
     const sesion = registrarSesionActiva(clienteId, subastaId);
     if (!sesion.ok) {
       return res.status(sesion.status).json({
@@ -2222,7 +2448,7 @@ async function crearPuja(req, res) {
       .query(`
         INSERT INTO Bids (asistente, item, importe, fechaHora, ganador)
         OUTPUT INSERTED.identificador, INSERTED.importe, INSERTED.fechaHora
-        SELECT @asistenteId, @itemId, @importe, GETDATE(), 'no'
+        SELECT @asistenteId, @itemId, @importe, ${SQL_NOW_ARGENTINA}, 'no'
         FROM (
           SELECT CASE WHEN ISNULL(MAX(importe), 0) > 0
                  THEN ISNULL(MAX(importe), 0) ELSE @precioBasePuja END AS referencia
@@ -2674,7 +2900,7 @@ app.post("/api/products", async (req, res) => {
         )
         OUTPUT INSERTED.identificador, INSERTED.estadoAprobacion
         VALUES (
-          CAST(GETDATE() AS DATE),
+          CAST(${SQL_NOW_ARGENTINA} AS DATE),
           'no',
           @descripcionCatalogo,
           @descripcionCompleta,
@@ -2930,7 +3156,7 @@ app.patch("/api/admin/products/:productId/review", requireEmployee, async (req, 
           comisionPropuesta = @comision,
           condicionesPropuestas = @condicionesPropuestas,
           fechaPropuesta = CASE
-            WHEN @estadoAprobacion = 'propuesta_enviada' THEN GETDATE()
+            WHEN @estadoAprobacion = 'propuesta_enviada' THEN ${SQL_NOW_ARGENTINA}
             ELSE NULL
           END
         WHERE identificador = @productId
@@ -3023,7 +3249,7 @@ app.get("/api/admin/action-options", requireEmployee, async (req, res) => {
       INNER JOIN Users u ON u.identificador=ar.cliente
       INNER JOIN Products p ON p.identificador=ar.producto
       INNER JOIN Auctions a ON a.identificador=ar.subasta
-      WHERE ar.estadoPago='pendiente' AND DATEADD(HOUR,72,ar.fechaVenta)<=GETDATE()
+      WHERE ar.estadoPago='pendiente' AND DATEADD(HOUR,72,ar.fechaVenta)<=${SQL_NOW_ARGENTINA}
         AND NOT EXISTS (SELECT 1 FROM Fines f WHERE f.cliente=ar.cliente AND f.subasta=ar.subasta AND f.pagada='no')
       ORDER BY ar.fechaVenta
     `);
@@ -3061,9 +3287,13 @@ app.post("/api/admin/auctions", requireEmployee, async (req, res) => {
   const estados = ["programada", "abierta", "en_curso", "cerrada", "cancelada"];
   const categorias = ["comun", "especial", "plata", "oro", "platino"];
   const monedas = ["pesos", "dolares"];
+  const capacidad = Number(capacidadAsistentes || 100);
+  const duracion = Number(duracionItemMinutos || 180);
 
   if (!fecha || !hora || !ubicacion || !estados.includes(estado)
-      || !categorias.includes(categoria) || !monedas.includes(moneda)) {
+      || !categorias.includes(categoria) || !monedas.includes(moneda)
+      || !fechaHoraSubastaValida(fecha, hora) || !Number.isInteger(capacidad) || capacidad < 1
+      || !Number.isInteger(duracion) || duracion < 1 || duracion > 1440) {
     return res.status(400).json({ error: "Complete fecha, hora, ubicación, estado, categoría y moneda válidos" });
   }
 
@@ -3084,12 +3314,12 @@ app.post("/api/admin/auctions", requireEmployee, async (req, res) => {
       .input("estado", sql.VarChar(20), estado)
       .input("subastador", sql.Int, auctioneer.recordset[0].identificador)
       .input("ubicacion", sql.VarChar(350), ubicacion.trim())
-      .input("capacidad", sql.Int, Number(capacidadAsistentes || 100))
+      .input("capacidad", sql.Int, capacidad)
       .input("deposito", sql.VarChar(2), tieneDeposito === "no" ? "no" : "si")
       .input("seguridad", sql.VarChar(2), seguridadPropia === "no" ? "no" : "si")
       .input("categoria", sql.VarChar(10), categoria)
       .input("moneda", sql.VarChar(10), moneda)
-      .input("duracion", sql.Int, Number(duracionItemMinutos || 180))
+      .input("duracion", sql.Int, duracion)
       .query(`
         INSERT INTO Auctions (fecha, hora, estado, subastador, ubicacion, capacidadAsistentes,
           tieneDeposito, seguridadPropia, categoria, moneda, duracionItemMinutos)
@@ -3104,7 +3334,7 @@ app.post("/api/admin/auctions", requireEmployee, async (req, res) => {
       .input("responsable", sql.Int, req.usuario.sub)
       .query("INSERT INTO Catalogs (descripcion, subasta, responsable) VALUES (@descripcion, @auctionId, @responsable)");
     await transaction.commit();
-    res.status(201).json({ mensaje: "Subasta y catálogo creados", id: auctionId });
+    res.status(201).json({ mensaje: "Subasta y catálogo creados en horario Argentina (GMT-3)", id: auctionId, fecha, hora, zonaHoraria: ARGENTINA_TIME_ZONE });
   } catch (err) {
     if (!transaction._aborted) await transaction.rollback().catch(() => {});
     res.status(500).json({ error: err.message });
@@ -3118,8 +3348,12 @@ app.patch("/api/admin/auctions/:auctionId", requireEmployee, async (req, res) =>
     const estados = ["programada", "abierta", "en_curso", "cerrada", "cancelada"];
     const categorias = ["comun", "especial", "plata", "oro", "platino"];
     const monedas = ["pesos", "dolares"];
+    const capacidad = Number(capacidadAsistentes || 100);
+    const duracion = Number(duracionItemMinutos || 180);
     if (!fecha || !hora || !ubicacion || !estados.includes(estado)
-        || !categorias.includes(categoria) || !monedas.includes(moneda)) {
+        || !categorias.includes(categoria) || !monedas.includes(moneda)
+        || !fechaHoraSubastaValida(fecha, hora) || !Number.isInteger(capacidad) || capacidad < 1
+        || !Number.isInteger(duracion) || duracion < 1 || duracion > 1440) {
       return res.status(400).json({ error: "Datos de subasta incompletos o inválidos" });
     }
     const pool = await poolPromise;
@@ -3129,12 +3363,12 @@ app.patch("/api/admin/auctions/:auctionId", requireEmployee, async (req, res) =>
       .input("hora", sql.VarChar(16), hora)
       .input("estado", sql.VarChar(20), estado)
       .input("ubicacion", sql.VarChar(350), ubicacion.trim())
-      .input("capacidad", sql.Int, Number(capacidadAsistentes || 100))
+      .input("capacidad", sql.Int, capacidad)
       .input("deposito", sql.VarChar(2), tieneDeposito === "no" ? "no" : "si")
       .input("seguridad", sql.VarChar(2), seguridadPropia === "no" ? "no" : "si")
       .input("categoria", sql.VarChar(10), categoria)
       .input("moneda", sql.VarChar(10), moneda)
-      .input("duracion", sql.Int, Number(duracionItemMinutos || 180))
+      .input("duracion", sql.Int, duracion)
       .query(`
         UPDATE Auctions SET fecha=@fecha, hora=@hora, estado=@estado, ubicacion=@ubicacion,
           capacidadAsistentes=@capacidad, tieneDeposito=@deposito, seguridadPropia=@seguridad,
@@ -3377,6 +3611,36 @@ app.post("/api/admin/auctions/:auctionId/items", requireEmployee, async (req, re
 
 app.post("/api/admin/auctions/:auctionId/items/:itemId/close", requireEmployee, async (req, res) => {
   try {
+    {
+      const poolAtomico = await poolPromise;
+      const resumen = await poolAtomico.request()
+        .input("auctionId", sql.Int, req.params.auctionId)
+        .input("itemId", sql.Int, req.params.itemId)
+        .query(`
+          SELECT ci.vendido, COUNT(b.identificador) AS pujas
+          FROM CatalogItems ci
+          INNER JOIN Catalogs c ON c.identificador=ci.catalogo
+          LEFT JOIN Bids b ON b.item=ci.identificador
+          WHERE c.subasta=@auctionId AND ci.identificador=@itemId
+          GROUP BY ci.vendido
+        `);
+      if (!resumen.recordset.length) {
+        return res.status(404).json({ error: "Lote o subasta no encontrados" });
+      }
+      if (resumen.recordset[0].vendido === "si") {
+        return res.status(409).json({ error: "El lote ya fue finalizado" });
+      }
+      await cerrarItemAtomico(poolAtomico, Number(req.params.itemId), Number(req.params.auctionId));
+      const sinPujas = Number(resumen.recordset[0].pujas || 0) === 0;
+      return res.status(200).json({
+        mensaje: sinPujas
+          ? "Lote finalizado sin pujas: la empresa lo adquirio al precio base."
+          : "Lote adjudicado al mejor postor y venta generada.",
+        itemId: Number(req.params.itemId),
+        subastaId: Number(req.params.auctionId),
+        sinPujas,
+      });
+    }
     const { medioPagoId, costoEnvio, retiroPersonal } = req.body;
     const pool = await poolPromise;
 
@@ -3947,6 +4211,7 @@ const heartbeatWebSocket = setInterval(() => {
 }, 25000);
 
 const temporizadorLotesSimultaneos = setInterval(cerrarLotesVencidosSimultaneos, 5000);
+cerrarLotesVencidosSimultaneos();
 
 wss.on("close", () => {
   clearInterval(heartbeatWebSocket);

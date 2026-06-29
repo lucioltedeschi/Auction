@@ -251,8 +251,9 @@
                     android:layout_height="108dp"
                     android:layout_marginEnd="8dp"
                     android:layout_weight="1"
-                    android:background="@drawable/bg_card_dark_premium"
+                    android:background="@drawable/bg_card_premium"
                     android:contentDescription="Revisar usuarios pendientes"
+                    android:elevation="2dp"
                     android:foreground="?attr/selectableItemBackground"
                     android:gravity="center"
                     android:orientation="vertical"
@@ -269,7 +270,7 @@
                         android:layout_marginTop="6dp"
                         android:gravity="center"
                         android:text="REVISAR USUARIOS"
-                        android:textColor="#FFFFFF"
+                        android:textColor="#071827"
                         android:textSize="11sp"
                         android:textStyle="bold" />
 
@@ -279,7 +280,7 @@
                         android:layout_height="wrap_content"
                         android:layout_marginTop="3dp"
                         android:text="— pendientes"
-                        android:textColor="#C9D5E2"
+                        android:textColor="#64748B"
                         android:textSize="10sp" />
 
                 </LinearLayout>
@@ -291,6 +292,7 @@
                     android:layout_weight="1"
                     android:background="@drawable/bg_card_premium"
                     android:contentDescription="Revisar medios de pago pendientes"
+                    android:elevation="2dp"
                     android:foreground="?attr/selectableItemBackground"
                     android:gravity="center"
                     android:orientation="vertical"
@@ -339,6 +341,7 @@
                     android:layout_weight="1"
                     android:background="@drawable/bg_card_premium"
                     android:contentDescription="Revisar consignaciones pendientes"
+                    android:elevation="2dp"
                     android:foreground="?attr/selectableItemBackground"
                     android:gravity="center"
                     android:orientation="vertical"
@@ -377,6 +380,7 @@
                     android:layout_weight="1"
                     android:background="@drawable/bg_card_premium"
                     android:contentDescription="Asignar productos aceptados a una subasta"
+                    android:elevation="2dp"
                     android:foreground="?attr/selectableItemBackground"
                     android:gravity="center"
                     android:orientation="vertical"
@@ -425,6 +429,7 @@
                     android:layout_weight="1"
                     android:background="@drawable/bg_card_premium"
                     android:contentDescription="Cerrar y adjudicar lotes"
+                    android:elevation="2dp"
                     android:foreground="?attr/selectableItemBackground"
                     android:gravity="center"
                     android:orientation="vertical"
@@ -463,6 +468,7 @@
                     android:layout_weight="1"
                     android:background="@drawable/bg_card_premium"
                     android:contentDescription="Gestionar multas por impago"
+                    android:elevation="2dp"
                     android:foreground="?attr/selectableItemBackground"
                     android:gravity="center"
                     android:orientation="vertical"

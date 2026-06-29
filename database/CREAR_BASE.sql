@@ -14,7 +14,7 @@ BEGIN
         [numeroPostor] int NOT NULL,
         [cliente] int NOT NULL,
         [subasta] int NOT NULL,
-        [fechaIngreso] datetime NOT NULL CONSTRAINT [DF__Attendees__fecha__236943A5] DEFAULT (getdate()),
+        [fechaIngreso] datetime NOT NULL CONSTRAINT [DF__Attendees__fecha__236943A5] DEFAULT (DATEADD(HOUR,-3,SYSUTCDATETIME())),
         CONSTRAINT [pk_attendees] PRIMARY KEY ([identificador])
     );
 END
@@ -44,7 +44,7 @@ BEGIN
         [comision] decimal(18, 2) NOT NULL,
         [costoEnvio] decimal(18, 2) NULL,
         [estadoPago] varchar(20) NULL,
-        [fechaVenta] datetime NOT NULL CONSTRAINT [DF__AuctionRe__fecha__3493CFA7] DEFAULT (getdate()),
+        [fechaVenta] datetime NOT NULL CONSTRAINT [DF__AuctionRe__fecha__3493CFA7] DEFAULT (DATEADD(HOUR,-3,SYSUTCDATETIME())),
         [retiroPersonal] varchar(2) NULL,
         CONSTRAINT [pk_auctionRecords] PRIMARY KEY ([identificador])
     );
@@ -66,7 +66,7 @@ BEGIN
         [categoria] varchar(10) NOT NULL,
         [moneda] varchar(10) NOT NULL CONSTRAINT [DF__Auctions__moneda__02084FDA] DEFAULT ('pesos'),
         [duracionItemMinutos] int NOT NULL CONSTRAINT [DF__Auctions__duraci__02FC7413] DEFAULT ((180)),
-        [fechaAlta] datetime NOT NULL CONSTRAINT [DF__Auctions__fechaA__03F0984C] DEFAULT (getdate()),
+        [fechaAlta] datetime NOT NULL CONSTRAINT [DF__Auctions__fechaA__03F0984C] DEFAULT (DATEADD(HOUR,-3,SYSUTCDATETIME())),
         CONSTRAINT [pk_auctions] PRIMARY KEY ([identificador])
     );
 END
@@ -79,7 +79,7 @@ BEGIN
         [asistente] int NOT NULL,
         [item] int NOT NULL,
         [importe] decimal(18, 2) NOT NULL,
-        [fechaHora] datetime NOT NULL CONSTRAINT [DF__Bids__fechaHora__29221CFB] DEFAULT (getdate()),
+        [fechaHora] datetime NOT NULL CONSTRAINT [DF__Bids__fechaHora__29221CFB] DEFAULT (DATEADD(HOUR,-3,SYSUTCDATETIME())),
         [ganador] varchar(2) NOT NULL CONSTRAINT [DF__Bids__ganador__2B0A656D] DEFAULT ('no'),
         [confirmado] varchar(2) NOT NULL CONSTRAINT [DF__Bids__confirmado__2CF2ADDF] DEFAULT ('si'),
         CONSTRAINT [pk_bids] PRIMARY KEY ([identificador])
@@ -160,7 +160,7 @@ BEGIN
         [subasta] int NOT NULL,
         [monto] decimal(18, 2) NOT NULL,
         [pagada] varchar(2) NOT NULL CONSTRAINT [DF__Fines__pagada__3F115E1A] DEFAULT ('no'),
-        [fechaGeneracion] datetime NOT NULL CONSTRAINT [DF__Fines__fechaGene__40058253] DEFAULT (getdate()),
+        [fechaGeneracion] datetime NOT NULL CONSTRAINT [DF__Fines__fechaGene__40058253] DEFAULT (DATEADD(HOUR,-3,SYSUTCDATETIME())),
         CONSTRAINT [pk_fines] PRIMARY KEY ([identificador])
     );
 END
@@ -174,7 +174,7 @@ BEGIN
         [compania] varchar(150) NOT NULL,
         [polizaCombinada] varchar(2) NOT NULL,
         [importe] decimal(18, 2) NOT NULL,
-        [fechaAlta] datetime NOT NULL CONSTRAINT [DF__Insurance__fecha__76969D2E] DEFAULT (getdate()),
+        [fechaAlta] datetime NOT NULL CONSTRAINT [DF__Insurance__fecha__76969D2E] DEFAULT (DATEADD(HOUR,-3,SYSUTCDATETIME())),
         CONSTRAINT [pk_insurances] PRIMARY KEY ([nroPoliza])
     );
 END
@@ -187,7 +187,7 @@ BEGIN
         [cliente] int NOT NULL,
         [titulo] varchar(150) NOT NULL,
         [mensaje] varchar(1000) NOT NULL,
-        [fechaHora] datetime NOT NULL CONSTRAINT [DF__Notificat__fecha__44CA3770] DEFAULT (getdate()),
+        [fechaHora] datetime NOT NULL CONSTRAINT [DF__Notificat__fecha__44CA3770] DEFAULT (DATEADD(HOUR,-3,SYSUTCDATETIME())),
         [leida] varchar(2) NOT NULL CONSTRAINT [DF__Notificat__leida__46B27FE2] DEFAULT ('no'),
         CONSTRAINT [pk_notifications] PRIMARY KEY ([identificador])
     );
@@ -235,7 +235,7 @@ BEGIN
         [verificado] varchar(2) NOT NULL CONSTRAINT [DF__PaymentMe__verif__6B24EA82] DEFAULT ('no'),
         [montoCheque] decimal(18, 2) NULL,
         [montoDisponible] decimal(18, 2) NULL,
-        [fechaAlta] datetime NOT NULL CONSTRAINT [DF__PaymentMe__fecha__6C190EBB] DEFAULT (getdate()),
+        [fechaAlta] datetime NOT NULL CONSTRAINT [DF__PaymentMe__fecha__6C190EBB] DEFAULT (DATEADD(HOUR,-3,SYSUTCDATETIME())),
         CONSTRAINT [pk_paymentMethods] PRIMARY KEY ([identificador])
     );
 END
@@ -272,7 +272,7 @@ BEGIN
         [revisor] int NULL,
         [duenio] int NOT NULL,
         [seguro] varchar(30) NULL,
-        [fechaAlta] datetime NOT NULL CONSTRAINT [DF__Products__fechaA__0D7A0286] DEFAULT (getdate()),
+        [fechaAlta] datetime NOT NULL CONSTRAINT [DF__Products__fechaA__0D7A0286] DEFAULT (DATEADD(HOUR,-3,SYSUTCDATETIME())),
         [precioBasePropuesto] decimal(18, 2) NULL,
         [comisionPropuesta] decimal(18, 2) NULL,
         [condicionesPropuestas] varchar(500) NULL,
@@ -310,7 +310,7 @@ BEGIN
         [fotoDniFrente] varbinary(MAX) NULL,
         [fotoDniDorso] varbinary(MAX) NULL,
         [clave] varchar(250) NULL,
-        [fechaAlta] datetime NOT NULL CONSTRAINT [DF__Users__fechaAlta__4F7CD00D] DEFAULT (getdate()),
+        [fechaAlta] datetime NOT NULL CONSTRAINT [DF__Users__fechaAlta__4F7CD00D] DEFAULT (DATEADD(HOUR,-3,SYSUTCDATETIME())),
         CONSTRAINT [pk_users] PRIMARY KEY ([identificador])
     );
 END
@@ -809,4 +809,3 @@ BEGIN
     REFERENCES [dbo].[Employees] ([identificador]);
 END
 GO
-
